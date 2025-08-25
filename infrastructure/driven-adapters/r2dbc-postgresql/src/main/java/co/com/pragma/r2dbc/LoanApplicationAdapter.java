@@ -23,8 +23,28 @@ public class LoanApplicationAdapter extends ReactiveAdapterOperations<
 
     @Override
     public Mono<LoanApplication> save(LoanApplication loanApplication) {
-        return super.save(loanApplication);
+        LoanApplicationEntity entity = LoanApplicationEntity.builder()
+                .applicationId(loanApplication.getApplicationId()) // se genera en la BD
+                .amount(loanApplication.getAmount())
+                .termMonths(loanApplication.getTermMonths())
+                .email(loanApplication.getEmail())
+                .document(loanApplication.getDocument())
+                .stateId(loanApplication.getStateId())
+                .loanTypeId(loanApplication.getLoanTypeId())
+                .build();
+
+        return repository.save(entity)
+                .map(saved -> LoanApplication.builder()
+                        .applicationId(saved.getApplicationId())
+                        .amount(saved.getAmount())
+                        .termMonths(saved.getTermMonths())
+                        .email(saved.getEmail())
+                        .document(saved.getDocument())
+                        .stateId(saved.getStateId())
+                        .loanTypeId(saved.getLoanTypeId())
+                        .build());
     }
+
     @Override
     public Flux<LoanApplication> findAll() {
         return super.findAll();

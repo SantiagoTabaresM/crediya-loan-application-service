@@ -1,5 +1,5 @@
 server:
-  port: 8080
+  port: 8081
 spring:
   application:
     name: "crediya-loan-application-service"
@@ -29,11 +29,11 @@ management:
       probes:
         enabled: true
 cors:
-  allowed-origins: "http://localhost:4200,http://localhost:8080"
+  allowed-origins: "http://localhost:4200,http://localhost:8081"
 routes:
   paths:
-    users: "/api/v1/loan-applications"
-    usersById: "/api/v1/loan-applications"/{id}"
+    loanApplications: "/api/v1/loan-application"
+    loanApplicationsById: "/api/v1/loan-application/{id}"
 
 adapters:
   r2dbc:

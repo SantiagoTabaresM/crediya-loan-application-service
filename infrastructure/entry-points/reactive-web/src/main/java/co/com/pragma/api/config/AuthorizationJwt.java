@@ -55,16 +55,12 @@ public class AuthorizationJwt implements WebFluxConfigurer {
 
     @Bean
     public SecurityWebFilterChain filterChain(ServerHttpSecurity http) {
-        http
-            .authorizeExchange(authorize -> authorize.anyExchange().authenticated())
-            .oauth2ResourceServer(oauth2 ->
-                    oauth2.jwt(jwtSpec ->
-                            jwtSpec
-                            .jwtDecoder(jwtDecoder())
-                            .jwtAuthenticationConverter(grantedAuthoritiesExtractor())
-                    )
-            );
-        return http.build();
+        return http
+                .csrf(csrf -> csrf.disable()) // Forma recomendada en Spring Security 6.1+
+                .authorizeExchange(auth -> auth
+                        .anyExchange().permitAll() // permite todas las rutas
+                )
+                .build();
     }
 
     public ReactiveJwtDecoder jwtDecoder() {
