@@ -1,0 +1,43 @@
+package co.com.pragma.r2dbc;
+
+import co.com.pragma.model.loanapplication.LoanApplication;
+import co.com.pragma.model.loanapplication.gateways.LoanApplicationRepository;
+import co.com.pragma.r2dbc.entity.LoanApplicationEntity;
+import co.com.pragma.r2dbc.helper.ReactiveAdapterOperations;
+import org.reactivecommons.utils.ObjectMapper;
+import org.springframework.stereotype.Repository;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
+
+
+@Repository
+public class LoanApplicationAdapter extends ReactiveAdapterOperations<
+        LoanApplication/* change for domain model */,
+        LoanApplicationEntity/* change for adapter model */,
+        Integer,
+        LoanApplicationReactiveRepository
+>  implements LoanApplicationRepository {
+    public LoanApplicationAdapter(LoanApplicationReactiveRepository repository, ObjectMapper mapper) {
+        super(repository, mapper, entity -> mapper.map(entity, LoanApplication.class));
+    }
+
+    @Override
+    public Mono<LoanApplication> save(LoanApplication loanApplication) {
+        return super.save(loanApplication);
+    }
+    @Override
+    public Flux<LoanApplication> findAll() {
+        return super.findAll();
+    }
+
+    @Override
+    public Mono<LoanApplication> findById(Integer id) {
+        return super.findById(id);
+    }
+
+    @Override
+    public Mono<Void> deleteById(Integer id) {
+        return repository.deleteById(id);
+    }
+
+}

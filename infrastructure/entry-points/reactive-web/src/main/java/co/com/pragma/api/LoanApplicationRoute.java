@@ -9,7 +9,7 @@ import reactor.core.publisher.Mono;
 
 @Component
 @RequiredArgsConstructor
-public class HandlerV1 {
+public class LoanApplicationRoute {
 //private  final UseCase useCase;
 //private  final UseCase2 useCase2;
 

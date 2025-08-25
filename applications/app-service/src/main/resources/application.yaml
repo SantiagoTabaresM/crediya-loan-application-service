@@ -30,3 +30,22 @@ management:
         enabled: true
 cors:
   allowed-origins: "http://localhost:4200,http://localhost:8080"
+routes:
+  paths:
+    users: "/api/v1/loan-applications"
+    usersById: "/api/v1/loan-applications"/{id}"
+
+adapters:
+  r2dbc:
+    host: "db.zpedtzxkdhkuvvpxbkdg.supabase.co"
+    port: 5432
+    database: "postgres"
+    schema: "public"
+    username: "postgres"
+    password: "authentication123"
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
