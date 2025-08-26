@@ -2,6 +2,7 @@ package co.com.pragma.usecase.loanapplication;
 
 import co.com.pragma.model.loanapplication.LoanApplication;
 import co.com.pragma.model.loanapplication.gateways.LoanApplicationRepository;
+import co.com.pragma.model.loantype.gateways.LoanTypeRepository;
 import co.com.pragma.usecase.exception.BussinesException;
 import lombok.RequiredArgsConstructor;
 import reactor.core.publisher.Flux;
@@ -20,7 +21,7 @@ public class LoanApplicationUseCase implements ILoanApplicationUseCase  {
     private static final String FIELD_AMOUNT = "amount";
     private static final String FIELD_TERM_MONTHS = "term_months";
     private static final String FIELD_DOCUMENT = "document";
-    private static final String FIELD_ID = "application_id";
+    private static final String FIELD_LOAN_TYPE_ID = "loan_type_id";
 
     private static final Integer PENDING_STATE = 1;
 
@@ -30,23 +31,41 @@ public class LoanApplicationUseCase implements ILoanApplicationUseCase  {
 
 
     private final LoanApplicationRepository loanApplicationRepository;
+    private final LoanTypeRepository loanTypeRepository;
+
 
     public Mono<LoanApplication> saveLoanApplication(LoanApplication loanApplication) {
         return validate(loanApplication, this::validateCreateLoanApplication)
-                .map(validatedLoanApplication -> {
-                    validatedLoanApplication.setStateId(PENDING_STATE);
-                    return validatedLoanApplication;
-                })
-                .flatMap(validatedLoanApplication -> loanApplicationRepository.save(loanApplication));
+                .flatMap(validatedLoanApplication ->
+                        loanTypeRepository.existsById(validatedLoanApplication.getLoanTypeId()) // Luego validar unicidad de email
+                                .flatMap(exists -> {
+                                    if (Boolean.FALSE.equals(exists)) {
+                                        Map<String, String> errors = createErrorMap();
+                                        errors.put(FIELD_LOAN_TYPE_ID, "Loan type ID " + validatedLoanApplication.getLoanTypeId() + " does not exist");
+                                        return Mono.error(new BussinesException("Validation error", errors));
+                                    }
+                                    validatedLoanApplication.setStateId(PENDING_STATE);
+                                    return loanApplicationRepository.save(validatedLoanApplication);
+                                })
+                );
+
+
     }
 
     public Mono<LoanApplication> updateLoanApplication(LoanApplication loanApplication) {
         return validate(loanApplication, this::validateUpdateloanApplication)
-                .map(validatedLoanApplication -> {
-                    validatedLoanApplication.setStateId(PENDING_STATE);
-                    return validatedLoanApplication;
-                })
-                .flatMap(validatedLoanApplication -> loanApplicationRepository.save(loanApplication));
+                .flatMap(validatedLoanApplication ->
+                        loanTypeRepository.existsById(validatedLoanApplication.getLoanTypeId()) // Luego validar unicidad de email
+                                .flatMap(exists -> {
+                                    if (Boolean.FALSE.equals(exists)) {
+                                        Map<String, String> errors = createErrorMap();
+                                        errors.put(FIELD_LOAN_TYPE_ID, "Loan type ID " + validatedLoanApplication.getLoanTypeId() + " does not exist");
+                                        return Mono.error(new BussinesException("Validation error", errors));
+                                    }
+                                    validatedLoanApplication.setStateId(PENDING_STATE);
+                                    return loanApplicationRepository.save(validatedLoanApplication);
+                                })
+                );
     }
 
     public Flux<LoanApplication> getAllLoanApplications() {
@@ -89,6 +108,7 @@ public class LoanApplicationUseCase implements ILoanApplicationUseCase  {
     private Map<String, String> validateUpdateloanApplication(LoanApplication loanApplication) {
         return validateCreateLoanApplication(loanApplication);
     }
+
 
 
     /**
