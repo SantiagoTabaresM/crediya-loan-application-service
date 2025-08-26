@@ -1,14 +1,14 @@
-package co.com.pragma.api.exception;
+package co.com.pragma.usecase.exception;
 
 
 import java.time.Instant;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-public class ValidationException extends RuntimeException {
-    private final Map<String, Object> errorDetails;
+public class BussinesException extends RuntimeException {
+    private final transient  Map<String, Object> errorDetails;
 
-    public ValidationException(String message, Map<String, String> fieldErrors) {
+    public BussinesException(String message, Map<String, String> fieldErrors) {
         super(buildErrorMessage(message, fieldErrors)); // fieldErrors en el message
         this.errorDetails = Map.of(
                 "timestamp", Instant.now().toEpochMilli(),

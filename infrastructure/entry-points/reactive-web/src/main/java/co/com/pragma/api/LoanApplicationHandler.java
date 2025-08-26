@@ -3,8 +3,7 @@ package co.com.pragma.api;
 import co.com.pragma.api.dto.CreateLoanApplicationDTO;
 import co.com.pragma.api.dto.UpdateLoanApplicationDTO;
 import co.com.pragma.api.mapper.LoanApplicationDTOMapper;
-import co.com.pragma.api.validation.LoanApplicationValidator;
-import co.com.pragma.model.loanapplication.LoanApplication;
+
 import co.com.pragma.usecase.loanapplication.ILoanApplicationUseCase;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
@@ -23,7 +22,7 @@ public class LoanApplicationHandler {
 
     private final ILoanApplicationUseCase loanApplicationUseCase;
     private final LoanApplicationDTOMapper loanApplicationDTOMapper;
-    private final LoanApplicationValidator loanApplicationValidator;
+
 
 
     public Mono<ServerResponse> listenSaveLoanApplication(ServerRequest serverRequest) {
@@ -31,7 +30,6 @@ public class LoanApplicationHandler {
         Mono<CreateLoanApplicationDTO> loanApplicationMono = serverRequest.bodyToMono(CreateLoanApplicationDTO.class);
         return loanApplicationMono
                 .doOnNext(dto -> log.info("Incoming LoanApplicationDTO: {}", dto))
-                .flatMap(loanApplicationValidator::validateCreateLoanApplication)
                 .map(loanApplicationDTOMapper::toLoanApplication)
                 .flatMap(loanApplicationUseCase::saveLoanApplication)
                 .map(loanApplicationDTOMapper::toLoanApplicationDTO)
