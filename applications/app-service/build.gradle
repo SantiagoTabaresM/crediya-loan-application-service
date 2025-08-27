@@ -4,6 +4,8 @@ dependencies {
 	implementation project(':reactive-web')
 	implementation 'org.reactivecommons.utils:object-mapper:0.1.0'
 	implementation project(':r2dbc-postgresql')
+    implementation project(':webclient-authentication-service')
+    implementation project(':logger-slf4j')
     implementation project(':model')
     implementation project(':usecase')
     implementation 'org.springframework.boot:spring-boot-starter'
