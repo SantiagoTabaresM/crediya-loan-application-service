@@ -42,77 +42,97 @@ public class LoanApplicationUseCase implements ILoanApplicationUseCase  {
     private final LoanTypeRepository loanTypeRepository;
     private final LoanApplicationWebClient loanApplicationWebClient;
 
+
     private final Logger logger;
     private final TxOperational txOperational;
+
 
     public Mono<LoanApplication> saveLoanApplication(LoanApplication loanApplication) {
         return txOperational.execute(() -> {
             logger.info("Attempting to save loan application for document: " + loanApplication.getDocument());
             return validate(loanApplication, this::validateCreateLoanApplication)
-                    .flatMap(validatedLoanApplication ->
-                            loanTypeRepository.existsById(validatedLoanApplication.getLoanTypeId())
-                                    .flatMap(exists -> {
-                                        if (Boolean.FALSE.equals(exists)) {
-                                            Map<String, String> errors = createErrorMap();
-                                            errors.put(FIELD_LOAN_TYPE_ID, "Loan type ID " + validatedLoanApplication.getLoanTypeId() + "ERROR_DONT_EXIST");
-                                            logger.error("Loan type validation failed for loanTypeId: " + validatedLoanApplication.getLoanTypeId(), null);
-                                            return Mono.error(new BussinesException(ERROR_VALIDATION, errors));
-                                        }
-                                        return loanApplicationWebClient.checkUserExists(validatedLoanApplication.getDocument(),
-                                                        validatedLoanApplication.getEmail())
-                                                .flatMap(userExists -> {
-                                                    if (Boolean.FALSE.equals(userExists)) {
-                                                        Map<String, String> errors = createErrorMap();
-                                                        errors.put(FIELD_USER,
-                                                                "User with document " + validatedLoanApplication.getDocument() +
-                                                                        " and email " + validatedLoanApplication.getEmail() + "ERROR_DONT_EXIST");
-                                                        logger.error("User validation failed for document: " + validatedLoanApplication.getDocument(), null);
-                                                        return Mono.error(new BussinesException(ERROR_VALIDATION, errors));
-                                                    }
-
-                                                    validatedLoanApplication.setStateId(PENDING_STATE);
-                                                    return loanApplicationRepository.save(validatedLoanApplication)
-                                                            .doOnSuccess(saved -> logger.info("Loan application saved successfully with id: " + saved.getApplicationId()));
-                                                });
-                                    })
-                    );
+                    .flatMap(this::validateLoanType)
+                    .flatMap(this::validateUserAndSave);
         });
     }
+
+
+    private Mono<LoanApplication> validateLoanType(LoanApplication loanApplication) {
+        return loanTypeRepository.existsById(loanApplication.getLoanTypeId())
+                .flatMap(exists -> {
+                    if (Boolean.FALSE.equals(exists)) {
+                        return Mono.error(new BussinesException(
+                                ERROR_VALIDATION,
+                                buildError(FIELD_LOAN_TYPE_ID,
+                                        "Loan type ID " + loanApplication.getLoanTypeId() + " " + ERROR_DONT_EXIST)
+                        ));
+                    }
+                    return Mono.just(loanApplication);
+                });
+    }
+
+    private Mono<LoanApplication> validateUserAndSave(LoanApplication loanApplication) {
+        return loanApplicationWebClient.checkUserExists(loanApplication.getDocument(), loanApplication.getEmail())
+                .flatMap(userExists -> {
+                    if (Boolean.FALSE.equals(userExists)) {
+                        return Mono.error(new BussinesException(
+                                ERROR_VALIDATION,
+                                buildError(FIELD_USER,
+                                        "User with document " + loanApplication.getDocument() +
+                                                " and email " + loanApplication.getEmail() + " " + ERROR_DONT_EXIST)
+                        ));
+                    }
+
+                    loanApplication.setStateId(PENDING_STATE);
+
+                    return loanApplicationRepository.save(loanApplication)
+                            .doOnSuccess(saved -> logger.info("Loan application saved successfully with id: "+ saved.getApplicationId()));
+                });
+    }
+
 
     public Mono<LoanApplication> updateLoanApplication(LoanApplication loanApplication) {
         return txOperational.execute(() -> {
-            logger.info("Attempting to update loan application with id: " + loanApplication.getApplicationId());
-
+            logger.info("Attempting to save loan application for document: " + loanApplication.getDocument());
             return validate(loanApplication, this::validateUpdateloanApplication)
-                    .flatMap(validatedLoanApplication ->
-                            loanTypeRepository.existsById(validatedLoanApplication.getLoanTypeId())
-                                    .flatMap(exists -> {
-                                        if (Boolean.FALSE.equals(exists)) {
-                                            Map<String, String> errors = createErrorMap();
-                                            errors.put(FIELD_LOAN_TYPE_ID, "Loan type ID " + validatedLoanApplication.getLoanTypeId() + " does not exist");
-                                            logger.error("Loan type validation failed for loanTypeId: " + validatedLoanApplication.getLoanTypeId(), null);
-                                            return Mono.error(new BussinesException(ERROR_VALIDATION, errors));
-                                        }
-
-                                        return loanApplicationWebClient.checkUserExists(validatedLoanApplication.getDocument(),
-                                                        validatedLoanApplication.getEmail())
-                                                .flatMap(userExists -> {
-                                                    if (Boolean.FALSE.equals(userExists)) {
-                                                        Map<String, String> errors = createErrorMap();
-                                                        errors.put(FIELD_USER,
-                                                                "User with document " + validatedLoanApplication.getDocument() +
-                                                                        " and email " + validatedLoanApplication.getEmail() + " does not exist");
-                                                        logger.error("User validation failed for document: " + validatedLoanApplication.getDocument(), null);
-                                                        return Mono.error(new BussinesException(ERROR_VALIDATION, errors));
-                                                    }
-
-                                                    return loanApplicationRepository.save(validatedLoanApplication)
-                                                            .doOnSuccess(saved -> logger.info("Loan application updated successfully with id: " + saved.getApplicationId()));
-                                                });
-                                    })
-                    );
+                    .flatMap(this::validateLoanType)
+                    .flatMap(this::validateUserAndUpdate);
         });
     }
+
+    private Mono<LoanApplication> validateUserAndUpdate(LoanApplication loanApplication) {
+        return loanApplicationRepository.findById(loanApplication.getApplicationId())
+                .flatMap(existing -> {
+                    boolean sameUser = existing.getDocument().equals(loanApplication.getDocument()) &&
+                            existing.getEmail().equals(loanApplication.getEmail());
+
+                    if (sameUser) {
+                        // no cambio de usuario/email → solo actualiza
+                        return loanApplicationRepository.save(loanApplication)
+                                .doOnSuccess(saved -> logger.info("Loan application updated with id:" + saved.getApplicationId()));
+                    }
+
+                    // si cambió usuario/email → validamos en el micro
+                    return loanApplicationWebClient.checkUserExists(loanApplication.getDocument(), loanApplication.getEmail())
+                            .flatMap(userExists -> {
+                                if (Boolean.FALSE.equals(userExists)) {
+                                    return Mono.error(new BussinesException(
+                                            ERROR_VALIDATION,
+                                            buildError(FIELD_USER,
+                                                    "User with document " + loanApplication.getDocument() +
+                                                            " and email " + loanApplication.getEmail() + " " + ERROR_DONT_EXIST)
+                                    ));
+                                }
+
+                                return loanApplicationRepository.save(loanApplication)
+                                        .doOnSuccess(saved -> logger.info("Loan application updated with id:" +  saved.getApplicationId()));
+                            });
+                });
+    }
+
+
+
+
 
     public Flux<LoanApplication> getAllLoanApplications() {
         logger.info("Fetching all loan applications");
@@ -140,6 +160,8 @@ public class LoanApplicationUseCase implements ILoanApplicationUseCase  {
         });
     }
 
+
+
     private Map<String, String> validateCreateLoanApplication(LoanApplication loanApplication) {
         Map<String, String> errors = createErrorMap();
         // Validar amount
@@ -152,7 +174,7 @@ public class LoanApplicationUseCase implements ILoanApplicationUseCase  {
 
 
         // Validar document
-        validateNotBlank(loanApplication.getDocument(), FIELD_DOCUMENT,
+         validateNotBlank(loanApplication.getDocument(), FIELD_DOCUMENT,
                 "The document is requerid", errors);
         validateLength(loanApplication.getDocument(),FIELD_DOCUMENT , 2, 50, errors);
 
@@ -163,10 +185,19 @@ public class LoanApplicationUseCase implements ILoanApplicationUseCase  {
         return errors;
     }
 
+
     private Map<String, String> validateUpdateloanApplication(LoanApplication loanApplication) {
         return validateCreateLoanApplication(loanApplication);
     }
 
+
+
+    private Map<String, String> buildError(String field, String message) {
+        Map<String, String> errors = createErrorMap();
+        errors.put(field, message);
+        logger.error("Validation failed for " + field + ": " +message, null);
+        return errors;
+    }
 
 
     /**
@@ -247,7 +278,6 @@ public class LoanApplicationUseCase implements ILoanApplicationUseCase  {
     public static Map<String, String> createErrorMap() {
         return new LinkedHashMap<>();
     }
-
 
 
 

@@ -181,8 +181,10 @@ class LoanApplicationUseCaseTest {
     @Test
     void updateLoanApplication_WithValidLoanApplication_ShouldUpdateSuccessfully() {
         when(loanTypeRepository.existsById(validLoanApplication.getLoanTypeId())).thenReturn(Mono.just(true));
-        when(loanApplicationWebClient.checkUserExists(validLoanApplication.getDocument(), validLoanApplication.getEmail()))
-                .thenReturn(Mono.just(true));
+
+        when(loanApplicationRepository.findById(anyInt())).thenReturn(Mono.just(validLoanApplication));
+
+
         when(txOperational.execute(any())).thenAnswer(invocation -> {
             // Ejecuta el supplier pasado
             return ((Supplier<Mono<LoanApplication>>) invocation.getArgument(0)).get();
@@ -230,6 +232,18 @@ class LoanApplicationUseCaseTest {
         when(loanTypeRepository.existsById(validLoanApplication.getLoanTypeId())).thenReturn(Mono.just(true));
         when(loanApplicationWebClient.checkUserExists(validLoanApplication.getDocument(), validLoanApplication.getEmail()))
                 .thenReturn(Mono.just(false));
+        LoanApplication validLoanApplication2 = LoanApplication.builder()
+                .applicationId(1)
+                .document("123456")
+                .email("test2@gmail.com")
+                .amount(5000.0)
+                .termMonths(12)
+                .loanTypeId(1)
+                .stateId(1)
+                .build();
+        when(loanApplicationRepository.findById(anyInt())).thenReturn(Mono.just(validLoanApplication2));
+
+
         when(txOperational.execute(any())).thenAnswer(invocation -> {
             // Ejecuta el supplier pasado
             return ((Supplier<Mono<LoanApplication>>) invocation.getArgument(0)).get();
