@@ -4,5 +4,5 @@ import reactor.core.publisher.Mono;
 
 public interface LoanApplicationWebClient {
 
-    Mono<Boolean> checkUserExists(String document, String email);
+    Mono<Boolean> checkUserExists(String document, String email, String jwt);
 }

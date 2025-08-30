@@ -18,7 +18,6 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.reactive.function.server.RouterFunction;
-import org.springframework.web.reactive.function.server.RouterFunctions;
 import org.springframework.web.reactive.function.server.ServerResponse;
 
 import static org.springframework.web.reactive.function.server.RequestPredicates.*;
@@ -33,13 +32,13 @@ public class RouterRest {
     private final LoanApplicationPath loanApplicationPath;
     private final LoanApplicationHandler loanApplicationHandler;
 
-    private static final String USERS = "/api/v1/loan-application";
-    private static final String USERS_BY_ID =  "/api/v1/loan-application/{id}";
+    private static final String LOAN_APPLICATION = "/api/v1/loan-application";
+    private static final String LOAN_APPLICATION_ID =  "/api/v1/loan-application/{id}";
 
     @Bean
     @RouterOperations({
             @RouterOperation(
-                    path = USERS,
+                    path = LOAN_APPLICATION,
                     method = {RequestMethod.POST},
                     beanClass = LoanApplicationHandler.class,
                     beanMethod = "listenSaveLoanApplication",
@@ -59,7 +58,7 @@ public class RouterRest {
                     )
             ),
             @RouterOperation(
-                    path = USERS_BY_ID,
+                    path = LOAN_APPLICATION_ID,
                     method = {RequestMethod.GET},
                     beanClass = LoanApplicationHandler.class,
                     beanMethod = "listenGetLoanApplicationById",
@@ -77,7 +76,7 @@ public class RouterRest {
                     )
             ),
             @RouterOperation(
-                    path = USERS,
+                    path = LOAN_APPLICATION,
                     method = {RequestMethod.PUT},
                     beanClass = LoanApplicationHandler.class,
                     beanMethod = "listenUpdateLoanApplication",
@@ -97,7 +96,7 @@ public class RouterRest {
                     )
             ),
             @RouterOperation(
-                    path = USERS,
+                    path = LOAN_APPLICATION,
                     method = {RequestMethod.GET},
                     beanClass = LoanApplicationHandler.class,
                     beanMethod = "listenGetAllLoanApplications",
@@ -111,7 +110,7 @@ public class RouterRest {
                     )
             ),
             @RouterOperation(
-                    path = USERS_BY_ID,
+                    path = LOAN_APPLICATION_ID,
                     method = {RequestMethod.DELETE},
                     beanClass = LoanApplicationHandler.class,
                     beanMethod = "listenDeleteLoanApplication",

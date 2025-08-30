@@ -76,9 +76,10 @@ class LoanApplicationUseCaseTest {
     @Test
     void testSaveLoanApplication_WithValidLoanApplication_ShouldSaveSuccessfully() {
         when(loanTypeRepository.existsById(validLoanApplication.getLoanTypeId())).thenReturn(Mono.just(true));
-        when(loanApplicationWebClient.checkUserExists(validLoanApplication.getDocument(), validLoanApplication.getEmail()))
+        when(loanApplicationWebClient.checkUserExists(validLoanApplication.getDocument(), validLoanApplication.getEmail(), anyString()))
                 .thenReturn(Mono.just(true));
         when(loanApplicationRepository.save(validLoanApplication)).thenReturn(Mono.just(validLoanApplication));
+
         when(txOperational.execute(any())).thenAnswer(invocation -> {
             // Ejecuta el supplier pasado
             return ((Supplier<Mono<LoanApplication>>) invocation.getArgument(0)).get();
@@ -146,7 +147,7 @@ class LoanApplicationUseCaseTest {
     void saveLoanApplication_shouldThrowBussinesException_whenUserNotExists() {
 
         when(loanTypeRepository.existsById(validLoanApplication.getLoanTypeId())).thenReturn(Mono.just(true));
-        when(loanApplicationWebClient.checkUserExists(validLoanApplication.getDocument(), validLoanApplication.getEmail()))
+        when(loanApplicationWebClient.checkUserExists(validLoanApplication.getDocument(), validLoanApplication.getEmail(), ""))
                 .thenReturn(Mono.just(false));
         when(txOperational.execute(any())).thenAnswer(invocation -> {
             // Ejecuta el supplier pasado
@@ -170,7 +171,7 @@ class LoanApplicationUseCaseTest {
                 .verify();
 
         // Verify
-        verify(loanApplicationWebClient, times(1)).checkUserExists(validLoanApplication.getDocument(), validLoanApplication.getEmail());
+        verify(loanApplicationWebClient, times(1)).checkUserExists(validLoanApplication.getDocument(), validLoanApplication.getEmail(), "");
         verify(loanApplicationRepository, never()).save(Mockito.any(LoanApplication.class));
     }
 
@@ -230,7 +231,7 @@ class LoanApplicationUseCaseTest {
     void updateLoanApplication_shouldThrowBussinesException_whenUserNotExists() {
 
         when(loanTypeRepository.existsById(validLoanApplication.getLoanTypeId())).thenReturn(Mono.just(true));
-        when(loanApplicationWebClient.checkUserExists(validLoanApplication.getDocument(), validLoanApplication.getEmail()))
+        when(loanApplicationWebClient.checkUserExists(validLoanApplication.getDocument(), validLoanApplication.getEmail(), anyString()))
                 .thenReturn(Mono.just(false));
         LoanApplication validLoanApplication2 = LoanApplication.builder()
                 .applicationId(1)
@@ -266,7 +267,7 @@ class LoanApplicationUseCaseTest {
                 .verify();
 
         // Verify
-        verify(loanApplicationWebClient, times(1)).checkUserExists(validLoanApplication.getDocument(), validLoanApplication.getEmail());
+        verify(loanApplicationWebClient, times(1)).checkUserExists(validLoanApplication.getDocument(), validLoanApplication.getEmail(), anyString());
         verify(loanApplicationRepository, never()).save(Mockito.any(LoanApplication.class));
     }
 

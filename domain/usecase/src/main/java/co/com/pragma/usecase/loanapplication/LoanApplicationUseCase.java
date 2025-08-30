@@ -5,6 +5,7 @@ import co.com.pragma.model.loanapplication.gateways.LoanApplicationRepository;
 import co.com.pragma.model.loanapplication.gateways.LoanApplicationWebClient;
 import co.com.pragma.model.loantype.gateways.LoanTypeRepository;
 import co.com.pragma.model.utils.gateways.Logger;
+import co.com.pragma.model.utils.gateways.SecurityUtilsPort;
 import co.com.pragma.model.utils.gateways.TxOperational;
 import co.com.pragma.usecase.exception.BussinesException;
 import lombok.RequiredArgsConstructor;
@@ -44,6 +45,7 @@ public class LoanApplicationUseCase implements ILoanApplicationUseCase  {
 
 
     private final Logger logger;
+    private final SecurityUtilsPort securityUtils;
     private final TxOperational txOperational;
 
 
@@ -57,6 +59,9 @@ public class LoanApplicationUseCase implements ILoanApplicationUseCase  {
     }
 
 
+    /**
+     * Valida que el tipo de préstamo exista.
+     */
     private Mono<LoanApplication> validateLoanType(LoanApplication loanApplication) {
         return loanTypeRepository.existsById(loanApplication.getLoanTypeId())
                 .flatMap(exists -> {
@@ -71,23 +76,33 @@ public class LoanApplicationUseCase implements ILoanApplicationUseCase  {
                 });
     }
 
+
     private Mono<LoanApplication> validateUserAndSave(LoanApplication loanApplication) {
-        return loanApplicationWebClient.checkUserExists(loanApplication.getDocument(), loanApplication.getEmail())
-                .flatMap(userExists -> {
-                    if (Boolean.FALSE.equals(userExists)) {
-                        return Mono.error(new BussinesException(
-                                ERROR_VALIDATION,
-                                buildError(FIELD_USER,
-                                        "User with document " + loanApplication.getDocument() +
-                                                " and email " + loanApplication.getEmail() + " " + ERROR_DONT_EXIST)
-                        ));
-                    }
+        return securityUtils.getUserToken() // aquí obtienes el Mono<String> del token
+                .flatMap(token ->
+                        loanApplicationWebClient.checkUserExists(
+                                        loanApplication.getDocument(),
+                                        loanApplication.getEmail(),
+                                        token
+                                )
+                                .flatMap(userExists -> {
+                                    if (Boolean.FALSE.equals(userExists)) {
+                                        return Mono.error(new BussinesException(
+                                                ERROR_VALIDATION,
+                                                buildError(FIELD_USER,
+                                                        "User with document " + loanApplication.getDocument() +
+                                                                " and email " + loanApplication.getEmail() + " " + ERROR_DONT_EXIST)
+                                        ));
+                                    }
 
-                    loanApplication.setStateId(PENDING_STATE);
+                                    loanApplication.setStateId(PENDING_STATE);
 
-                    return loanApplicationRepository.save(loanApplication)
-                            .doOnSuccess(saved -> logger.info("Loan application saved successfully with id: "+ saved.getApplicationId()));
-                });
+                                    return loanApplicationRepository.save(loanApplication)
+                                            .doOnSuccess(saved ->
+                                                    logger.info("Loan application saved successfully with id: " + saved.getApplicationId())
+                                            );
+                                })
+                );
     }
 
 
@@ -113,7 +128,7 @@ public class LoanApplicationUseCase implements ILoanApplicationUseCase  {
                     }
 
                     // si cambió usuario/email → validamos en el micro
-                    return loanApplicationWebClient.checkUserExists(loanApplication.getDocument(), loanApplication.getEmail())
+                    return loanApplicationWebClient.checkUserExists(loanApplication.getDocument(), loanApplication.getEmail(), "")
                             .flatMap(userExists -> {
                                 if (Boolean.FALSE.equals(userExists)) {
                                     return Mono.error(new BussinesException(

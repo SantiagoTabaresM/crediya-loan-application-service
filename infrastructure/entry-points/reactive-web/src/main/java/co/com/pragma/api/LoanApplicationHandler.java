@@ -32,7 +32,7 @@ public class LoanApplicationHandler {
                 .doOnNext(dto -> log.info("Incoming LoanApplicationDTO: {}", dto))
                 .map(loanApplicationDTOMapper::toLoanApplication)
                 .flatMap(loanApplicationUseCase::saveLoanApplication)
-                .map(loanApplicationDTOMapper::toLoanApplicationDTO)
+                //.map(loanApplicationDTOMapper::toLoanApplicationDTO)
                 .flatMap(savedLoanApplication -> ServerResponse.ok()
                         .contentType(MediaType.APPLICATION_JSON)
                         .bodyValue(savedLoanApplication))
@@ -54,7 +54,7 @@ public class LoanApplicationHandler {
     }
 
     public Mono<ServerResponse> listenGetAllLoanApplications(ServerRequest serverRequest) {
-        log.info("Received request to get all loanApplications");
+        log.info("Received request [{}] to get all loanApplications", serverRequest.path());
         return  loanApplicationUseCase.getAllLoanApplications()
                 .map(loanApplicationDTOMapper::toLoanApplicationDTO)
                 .collectList()
