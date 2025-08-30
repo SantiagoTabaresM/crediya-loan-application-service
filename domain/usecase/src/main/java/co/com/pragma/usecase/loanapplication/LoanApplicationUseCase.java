@@ -54,7 +54,9 @@ public class LoanApplicationUseCase implements ILoanApplicationUseCase  {
             logger.info("Attempting to save loan application for document: " + loanApplication.getDocument());
             return validate(loanApplication, this::validateCreateLoanApplication)
                     .flatMap(this::validateLoanType)
-                    .flatMap(this::validateUserAndSave);
+                    .flatMap(this::validateUserExist)
+                    .flatMap(this::validateUserLoanApplicationToken)
+                    .flatMap(this::saveLoanApplicationRepository);
         });
     }
 
@@ -77,7 +79,8 @@ public class LoanApplicationUseCase implements ILoanApplicationUseCase  {
     }
 
 
-    private Mono<LoanApplication> validateUserAndSave(LoanApplication loanApplication) {
+
+    private Mono<LoanApplication> validateUserExist(LoanApplication loanApplication) {
         return securityUtils.getUserToken() // aquí obtienes el Mono<String> del token
                 .flatMap(token ->
                         loanApplicationWebClient.checkUserExists(
@@ -97,14 +100,39 @@ public class LoanApplicationUseCase implements ILoanApplicationUseCase  {
 
                                     loanApplication.setStateId(PENDING_STATE);
 
-                                    return loanApplicationRepository.save(loanApplication)
-                                            .doOnSuccess(saved ->
-                                                    logger.info("Loan application saved successfully with id: " + saved.getApplicationId())
-                                            );
+                                    return Mono.just(loanApplication);
                                 })
                 );
     }
 
+
+    /**
+     * Valida que el userId del préstamo sea igual al del token.
+     */
+    private Mono<LoanApplication> validateUserLoanApplicationToken(LoanApplication loanApplication) {
+        return securityUtils.getDocument()
+                .flatMap(document -> {
+                    if (!loanApplication.getDocument().equals(document)) {
+                        return Mono.error(new BussinesException(
+                                ERROR_VALIDATION,
+                                buildError(FIELD_USER,
+                                        "You can only create loan applications for yourself.")
+                        ));
+                    }
+                    return Mono.just(loanApplication);
+                });
+    }
+
+    /**
+     * Guarda la solicitud en estado pendiente.
+     */
+    private Mono<LoanApplication> saveLoanApplicationRepository(LoanApplication loanApplication) {
+        loanApplication.setStateId(PENDING_STATE);
+        return loanApplicationRepository.save(loanApplication)
+                .doOnSuccess(saved ->
+                        logger.info("Loan application saved successfully with id:" +  saved.getApplicationId())
+                );
+    }
 
     public Mono<LoanApplication> updateLoanApplication(LoanApplication loanApplication) {
         return txOperational.execute(() -> {

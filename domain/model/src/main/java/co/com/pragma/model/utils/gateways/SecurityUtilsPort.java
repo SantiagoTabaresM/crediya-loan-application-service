@@ -4,7 +4,7 @@ import reactor.core.publisher.Mono;
 
 public interface SecurityUtilsPort {
 
-    Mono<String> getUserId();
+    Mono<String> getDocument();
 
     Mono<String> getUserRole();
 

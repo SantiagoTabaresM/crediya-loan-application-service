@@ -15,11 +15,11 @@ public class SecurityUtilsAdapter implements SecurityUtilsPort {
      * Obtiene el ID del usuario desde el JWT.
      */
     @Override
-    public  Mono<String> getUserId() {
+    public  Mono<String> getDocument() {
         return ReactiveSecurityContextHolder.getContext()
                 .map(SecurityContext::getAuthentication)
                 .cast(JwtAuthenticationToken.class)
-                .map(auth -> auth.getToken().getClaim("sub"));
+                .map(auth -> auth.getToken().getSubject());
     }
 
 
