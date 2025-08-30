@@ -1,7 +1,7 @@
 package co.com.pragma.usecase.loanapplication;
 
 import co.com.pragma.model.loanapplication.LoanApplication;
-import co.com.pragma.model.loanapplication.LoanApplicationReport;
+import co.com.pragma.model.loanapplication.LoanUserInfo;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
@@ -17,12 +17,12 @@ public interface ILoanApplicationUseCase {
 
     public Mono<Void> deleteLoanApplication(Integer id) ;
 
-    public Flux<LoanApplicationReport> getLoanApplicationReport(Integer id,
-                                                                String  document,
-                                                                Integer term,
-                                                                String loanType,
-                                                                String state,
-                                                                Integer page,
-                                                                Integer size) ;
+    public Flux<LoanUserInfo> getLoanApplicationReport(Integer id,
+                                                       String  document,
+                                                       Integer term,
+                                                       String loanType,
+                                                       String state,
+                                                       Integer page,
+                                                       Integer size) ;
 
 }

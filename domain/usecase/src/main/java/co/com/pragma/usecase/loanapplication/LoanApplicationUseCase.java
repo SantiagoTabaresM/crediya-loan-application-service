@@ -1,7 +1,9 @@
 package co.com.pragma.usecase.loanapplication;
 
 import co.com.pragma.model.loanapplication.LoanApplication;
-import co.com.pragma.model.loanapplication.LoanApplicationReport;
+import co.com.pragma.model.loanapplication.LoanInfo;
+import co.com.pragma.model.loanapplication.LoanUserInfo;
+import co.com.pragma.model.loanapplication.UserInfo;
 import co.com.pragma.model.loanapplication.gateways.LoanApplicationRepository;
 import co.com.pragma.model.loanapplication.gateways.LoanApplicationWebClient;
 import co.com.pragma.model.loantype.gateways.LoanTypeRepository;
@@ -126,11 +128,49 @@ public class LoanApplicationUseCase implements ILoanApplicationUseCase  {
 
 
     @Override
-    public Flux<LoanApplicationReport> getLoanApplicationReport(Integer id, String document, Integer term, String loanType, String state, Integer page, Integer size) {
+    public Flux<LoanUserInfo> getLoanApplicationReport(Integer id, String document, Integer term,
+                                              String loanType, String state, Integer page, Integer size) {
         return loanApplicationRepository.getLoanApplicationsReport(id, document, term, loanType, state, page, size)
-                .doOnComplete(() -> logger.info("Finished fetching all loan applications"));
+                .collectList()
+                .flatMapMany(loans -> {
+                    String[] documents = loans.stream()
+                            .map(LoanInfo::getDocument)
+                            .toArray(String[]::new);
 
+                    return securityUtils.getUserToken() // obtenemos el JWT
+                            .flatMapMany(jwt ->
+                                    loanApplicationWebClient.getUsersByDocuments(documents, jwt)
+                                            .collectList()
+                                            .flatMapMany(users ->
+                                                    Flux.fromIterable(loans)
+                                                    .map(loan -> {
+                                                        UserInfo user = users.stream()
+                                                                .filter(u -> u.getDocument().equals(loan.getDocument()))
+                                                                .findFirst()
+                                                                .orElse(null);
+
+                                                        // mapeamos los datos al DTO LoanUserInfo
+                                                        return LoanUserInfo.builder()
+                                                                .applicationId(loan.getApplicationId())
+                                                                .document(loan.getDocument())
+                                                                .amount(loan.getAmount())
+                                                                .termMonths(loan.getTermMonths())
+                                                                .loanType(loan.getLoanType())
+                                                                .loanState(loan.getLoanState())
+                                                                .interestRate(loan.getInterestRate())
+                                                                .email(loan.getEmail())
+                                                                .name(user != null ? user.getName() : null)
+                                                                .lastName(user != null ? user.getLastName() : null)
+                                                                .baseSalary(user != null ? user.getBaseSalary() : null)
+                                                                .build();
+                                                    })
+                                            )
+                            );
+                })
+                .doOnComplete(() -> logger.info("Finished fetching all loan and user info"));
     }
+
+
 
 
 

@@ -7,7 +7,7 @@ import lombok.*;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder(toBuilder = true)
-public class LoanApplicationReport {
+public class LoanInfo {
 
     private Integer applicationId;
     private String document;

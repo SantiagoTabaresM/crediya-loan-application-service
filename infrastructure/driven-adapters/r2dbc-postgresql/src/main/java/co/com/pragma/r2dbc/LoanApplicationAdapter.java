@@ -1,7 +1,7 @@
 package co.com.pragma.r2dbc;
 
 import co.com.pragma.model.loanapplication.LoanApplication;
-import co.com.pragma.model.loanapplication.LoanApplicationReport;
+import co.com.pragma.model.loanapplication.LoanInfo;
 import co.com.pragma.model.loanapplication.gateways.LoanApplicationRepository;
 import co.com.pragma.r2dbc.entity.LoanApplicationEntity;
 import co.com.pragma.r2dbc.helper.ReactiveAdapterOperations;
@@ -63,9 +63,9 @@ public class LoanApplicationAdapter extends ReactiveAdapterOperations<
     }
 
     @Override
-    public Flux<LoanApplicationReport> getLoanApplicationsReport(Integer id, String document, Integer term, String loanType, String state, Integer page, Integer pageSize) {
+    public Flux<LoanInfo> getLoanApplicationsReport(Integer id, String document, Integer term, String loanType, String state, Integer page, Integer pageSize) {
         return repository.findLoanApplicationsReport(id, document, term, loanType, state, page, pageSize)
-                .map(entity -> co.com.pragma.model.loanapplication.LoanApplicationReport.builder()
+                .map(entity -> LoanInfo.builder()
                         .applicationId(entity.getApplicationId())
                         .document(entity.getDocument())
                         .email(entity.getEmail())
