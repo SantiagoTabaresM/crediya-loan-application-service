@@ -40,6 +40,40 @@ public class LoanApplicationHandler {
                 .doOnSuccess(resp -> log.info("LoanApplication created successfully"));
     }
 
+
+    public Mono<ServerResponse> listenGetLoanApplicationsReport(ServerRequest serverRequest) {
+        log.info("Received request to create report LoanApplication");
+        Integer id = serverRequest.queryParam("id").map(Integer::valueOf).orElse(null);
+        String document = serverRequest.queryParam("document").orElse(null);
+        Integer term = serverRequest.queryParam("term").map(Integer::valueOf).orElse(null);
+        String loanType = serverRequest.queryParam("loanType").orElse(null);
+        String state = serverRequest.queryParam("state").orElse(null);
+
+        Integer page = Integer.parseInt(serverRequest.queryParam("page").orElse("0"));
+        Integer size = Integer.parseInt(serverRequest.queryParam("size").orElse("10"));
+
+
+        return  loanApplicationUseCase.getLoanApplicationReport(id, document, term, loanType, state, page, size)
+                .collectList()
+                .flatMap(loanApplicationsList -> {
+                    log.info("Returning {} loanApplications", loanApplicationsList.size());
+                    return ServerResponse.ok()
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .bodyValue(loanApplicationsList);
+                })
+                .doOnError(e -> log.error("Error fetching loanApplications", e))
+                .doOnSuccess(resp -> log.info("Successfully returned all loanApplications"));
+    }
+
+
+
+
+
+
+
+
+
+
     public Mono<ServerResponse> listenUpdateLoanApplication(ServerRequest serverRequest) {
         Mono<UpdateLoanApplicationDTO> loanApplicationMono = serverRequest.bodyToMono(UpdateLoanApplicationDTO.class);
         return loanApplicationMono

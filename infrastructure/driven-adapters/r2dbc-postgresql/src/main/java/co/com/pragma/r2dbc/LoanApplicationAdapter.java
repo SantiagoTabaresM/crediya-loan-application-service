@@ -1,6 +1,7 @@
 package co.com.pragma.r2dbc;
 
 import co.com.pragma.model.loanapplication.LoanApplication;
+import co.com.pragma.model.loanapplication.LoanApplicationReport;
 import co.com.pragma.model.loanapplication.gateways.LoanApplicationRepository;
 import co.com.pragma.r2dbc.entity.LoanApplicationEntity;
 import co.com.pragma.r2dbc.helper.ReactiveAdapterOperations;
@@ -17,6 +18,7 @@ public class LoanApplicationAdapter extends ReactiveAdapterOperations<
         Integer,
         LoanApplicationReactiveRepository
 >  implements LoanApplicationRepository {
+
     public LoanApplicationAdapter(LoanApplicationReactiveRepository repository, ObjectMapper mapper) {
         super(repository, mapper, entity -> mapper.map(entity, LoanApplication.class));
     }
@@ -60,4 +62,18 @@ public class LoanApplicationAdapter extends ReactiveAdapterOperations<
         return repository.deleteById(id);
     }
 
+    @Override
+    public Flux<LoanApplicationReport> getLoanApplicationsReport(Integer id, String document, Integer term, String loanType, String state, Integer page, Integer pageSize) {
+        return repository.findLoanApplicationsReport(id, document, term, loanType, state, page, pageSize)
+                .map(entity -> co.com.pragma.model.loanapplication.LoanApplicationReport.builder()
+                        .applicationId(entity.getApplicationId())
+                        .document(entity.getDocument())
+                        .email(entity.getEmail())
+                        .amount(entity.getAmount())
+                        .termMonths(entity.getTermMonths())
+                        .loanType(entity.getLoanType())
+                        .interestRate(entity.getInterestRate() != null ? entity.getInterestRate().toString() : null)
+                        .loanState(entity.getLoanState())
+                        .build());
+    }
 }

@@ -1,6 +1,7 @@
 package co.com.pragma.usecase.loanapplication;
 
 import co.com.pragma.model.loanapplication.LoanApplication;
+import co.com.pragma.model.loanapplication.LoanApplicationReport;
 import co.com.pragma.model.loanapplication.gateways.LoanApplicationRepository;
 import co.com.pragma.model.loanapplication.gateways.LoanApplicationWebClient;
 import co.com.pragma.model.loantype.gateways.LoanTypeRepository;
@@ -122,6 +123,26 @@ public class LoanApplicationUseCase implements ILoanApplicationUseCase  {
                     return Mono.just(loanApplication);
                 });
     }
+
+
+    @Override
+    public Flux<LoanApplicationReport> getLoanApplicationReport(Integer id, String document, Integer term, String loanType, String state, Integer page, Integer size) {
+        return loanApplicationRepository.getLoanApplicationsReport(id, document, term, loanType, state, page, size)
+                .doOnComplete(() -> logger.info("Finished fetching all loan applications"));
+
+    }
+
+
+
+
+
+
+
+
+
+
+
+
 
     /**
      * Guarda la solicitud en estado pendiente.

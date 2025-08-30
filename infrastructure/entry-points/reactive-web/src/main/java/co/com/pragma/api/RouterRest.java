@@ -125,6 +125,29 @@ public class RouterRest {
                                     @ApiResponse(responseCode = "404", description = "LoanApplication not found")
                             }
                     )
+            ),
+            @RouterOperation(
+                    path = LOAN_APPLICATION + "-report",
+                    method = {RequestMethod.GET},
+                    beanClass = LoanApplicationHandler.class,
+                    beanMethod = "listenGetLoanApplicationsReport",
+                    operation = @Operation(
+                            operationId = "getLoanApplicationsReport",
+                            summary = "Get loanApplications report",
+                            parameters = {
+                                    @Parameter(name = "id", in = ParameterIn.PATH, description = "Application ID", required = true, schema = @Schema(type = "integer")),
+                                    @Parameter(name = "document", in = ParameterIn.QUERY, description = "Applicant document", schema = @Schema(type = "string")),
+                                    @Parameter(name = "term", in = ParameterIn.QUERY, description = "Loan term in months", schema = @Schema(type = "integer")),
+                                    @Parameter(name = "loanType", in = ParameterIn.QUERY, description = "Loan type", schema = @Schema(type = "string")),
+                                    @Parameter(name = "state", in = ParameterIn.QUERY, description = "Loan state", schema = @Schema(type = "string")),
+                                    @Parameter(name = "page", in = ParameterIn.QUERY, description = "Page number", schema = @Schema(type = "integer", defaultValue = "0")),
+                                    @Parameter(name = "size", in = ParameterIn.QUERY, description = "Page size", schema = @Schema(type = "integer", defaultValue = "10"))
+                            },
+                            responses = {
+                                    @ApiResponse(responseCode = "200", description = "LoanApplications report generated successfully",
+                                            content = @Content(schema = @Schema(implementation = String.class)))
+                            }
+                    )
             )
     })
     public RouterFunction<ServerResponse> routerFunction(LoanApplicationHandler routeLoanApplication ) {
@@ -132,6 +155,7 @@ public class RouterRest {
                 .andRoute(PUT(loanApplicationPath.getLoanApplications()), loanApplicationHandler::listenUpdateLoanApplication)
                 .andRoute(DELETE(loanApplicationPath.getLoanApplicationsById()), loanApplicationHandler::listenDeleteLoanApplication)
                 .andRoute(GET(loanApplicationPath.getLoanApplications()), loanApplicationHandler::listenGetAllLoanApplications)
-                .andRoute(GET(loanApplicationPath.getLoanApplicationsById()), loanApplicationHandler::listenGetLoanApplicationById);
+                .andRoute(GET(loanApplicationPath.getLoanApplicationsById()), loanApplicationHandler::listenGetLoanApplicationById)
+                .andRoute(GET(LOAN_APPLICATION + "-report"), loanApplicationHandler::listenGetLoanApplicationsReport);
     }
 }
