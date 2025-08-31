@@ -43,6 +43,7 @@ public class LoanApplicationHandler {
 
     public Mono<ServerResponse> listenGetLoanApplicationsReport(ServerRequest serverRequest) {
         log.info("Received request to create report LoanApplication");
+
         Integer id = serverRequest.queryParam("id").map(Integer::valueOf).orElse(null);
         String document = serverRequest.queryParam("document").orElse(null);
         Integer term = serverRequest.queryParam("term").map(Integer::valueOf).orElse(null);

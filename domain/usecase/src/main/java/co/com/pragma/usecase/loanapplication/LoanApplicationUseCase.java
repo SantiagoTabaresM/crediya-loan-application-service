@@ -149,6 +149,21 @@ public class LoanApplicationUseCase implements ILoanApplicationUseCase  {
                                                                 .findFirst()
                                                                 .orElse(null);
 
+                                                        // cálculo de cuota mensual
+                                                        Double monthlyInstallment = null;
+                                                        if (loan.getAmount() != null && loan.getTermMonths() != null && loan.getInterestRate() != null) {
+                                                            double principal = loan.getAmount();
+                                                            double monthlyRate = Double.parseDouble(loan.getInterestRate()) / 100.0 / 12.0;
+                                                            int n = loan.getTermMonths();
+
+                                                            if (monthlyRate > 0) {
+                                                                monthlyInstallment = principal * (monthlyRate / (1 - Math.pow(1 + monthlyRate, -n)));
+                                                            } else {
+                                                                // caso sin interés
+                                                                monthlyInstallment = principal / n;
+                                                            }
+                                                        }
+
                                                         // mapeamos los datos al DTO LoanUserInfo
                                                         return LoanUserInfo.builder()
                                                                 .applicationId(loan.getApplicationId())
@@ -162,6 +177,7 @@ public class LoanApplicationUseCase implements ILoanApplicationUseCase  {
                                                                 .name(user != null ? user.getName() : null)
                                                                 .lastName(user != null ? user.getLastName() : null)
                                                                 .baseSalary(user != null ? user.getBaseSalary() : null)
+                                                                .monthlyInstallment(monthlyInstallment)
                                                                 .build();
                                                     })
                                             )

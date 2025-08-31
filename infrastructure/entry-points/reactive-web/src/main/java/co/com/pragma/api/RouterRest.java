@@ -35,6 +35,8 @@ public class RouterRest {
     private static final String LOAN_APPLICATION = "/api/v1/loan-application";
     private static final String LOAN_APPLICATION_ID =  "/api/v1/loan-application/{id}";
 
+    private static final String LOAN_APPLICATION_REPORT = "/api/v1/loan-application-report";
+
     @Bean
     @RouterOperations({
             @RouterOperation(
@@ -127,7 +129,7 @@ public class RouterRest {
                     )
             ),
             @RouterOperation(
-                    path = LOAN_APPLICATION + "-report",
+                    path = LOAN_APPLICATION_REPORT,
                     method = {RequestMethod.GET},
                     beanClass = LoanApplicationHandler.class,
                     beanMethod = "listenGetLoanApplicationsReport",
@@ -156,6 +158,6 @@ public class RouterRest {
                 .andRoute(DELETE(loanApplicationPath.getLoanApplicationsById()), loanApplicationHandler::listenDeleteLoanApplication)
                 .andRoute(GET(loanApplicationPath.getLoanApplications()), loanApplicationHandler::listenGetAllLoanApplications)
                 .andRoute(GET(loanApplicationPath.getLoanApplicationsById()), loanApplicationHandler::listenGetLoanApplicationById)
-                .andRoute(GET(LOAN_APPLICATION + "-report"), loanApplicationHandler::listenGetLoanApplicationsReport);
+                .andRoute(GET(LOAN_APPLICATION_REPORT), loanApplicationHandler::listenGetLoanApplicationsReport);
     }
 }

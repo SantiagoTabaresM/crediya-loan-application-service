@@ -20,4 +20,5 @@ public class LoanUserInfo {
     private String name;
     private String lastName;
     private Integer baseSalary;
+    private Double monthlyInstallment;
 }
