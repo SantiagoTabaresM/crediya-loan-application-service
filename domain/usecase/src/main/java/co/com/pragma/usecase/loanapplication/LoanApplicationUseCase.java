@@ -1,9 +1,6 @@
 package co.com.pragma.usecase.loanapplication;
 
-import co.com.pragma.model.loanapplication.LoanApplication;
-import co.com.pragma.model.loanapplication.LoanInfo;
-import co.com.pragma.model.loanapplication.LoanUserInfo;
-import co.com.pragma.model.loanapplication.UserInfo;
+import co.com.pragma.model.loanapplication.*;
 import co.com.pragma.model.loanapplication.gateways.LoanApplicationRepository;
 import co.com.pragma.model.loanapplication.gateways.LoanApplicationWebClient;
 import co.com.pragma.model.loantype.gateways.LoanTypeRepository;
@@ -16,7 +13,9 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.Function;
 import java.util.regex.Pattern;
 
@@ -128,65 +127,76 @@ public class LoanApplicationUseCase implements ILoanApplicationUseCase  {
 
 
     @Override
-    public Flux<LoanUserInfo> getLoanApplicationReport(Integer id, String document, Integer term,
-                                              String loanType, String state, Integer page, Integer size) {
+    public Mono<LoanUserReport> getLoanApplicationReport(Integer id, String document, Integer term,
+                                                         String loanType, String state, Integer page, Integer size) {
         return loanApplicationRepository.getLoanApplicationsReport(id, document, term, loanType, state, page, size)
                 .collectList()
-                .flatMapMany(loans -> {
+                .flatMap(loans -> {
                     String[] documents = loans.stream()
                             .map(LoanInfo::getDocument)
                             .toArray(String[]::new);
 
-                    return securityUtils.getUserToken() // obtenemos el JWT
-                            .flatMapMany(jwt ->
+                    return securityUtils.getUserToken()
+                            .flatMap(jwt ->
                                     loanApplicationWebClient.getUsersByDocuments(documents, jwt)
                                             .collectList()
-                                            .flatMapMany(users ->
-                                                    Flux.fromIterable(loans)
-                                                    .map(loan -> {
-                                                        UserInfo user = users.stream()
-                                                                .filter(u -> u.getDocument().equals(loan.getDocument()))
-                                                                .findFirst()
-                                                                .orElse(null);
+                                            .map(users -> {
+                                                // mapeo de loans a LoanUserInfo con cálculo de monthlyInstallment
+                                                List<LoanUserInfo> loanUserInfos = loans.stream().map(loan -> {
+                                                    UserInfo user = users.stream()
+                                                            .filter(u -> u.getDocument().equals(loan.getDocument()))
+                                                            .findFirst()
+                                                            .orElse(null);
 
-                                                        // cálculo de cuota mensual
-                                                        Double monthlyInstallment = null;
-                                                        if (loan.getAmount() != null && loan.getTermMonths() != null && loan.getInterestRate() != null) {
-                                                            double principal = loan.getAmount();
-                                                            double monthlyRate = Double.parseDouble(loan.getInterestRate()) / 100.0 / 12.0;
-                                                            int n = loan.getTermMonths();
+                                                    Double monthlyInstallment = null;
+                                                    if (loan.getAmount() != null && loan.getTermMonths() != null && loan.getInterestRate() != null) {
+                                                        double principal = loan.getAmount();
+                                                        double monthlyRate = Double.parseDouble(loan.getInterestRate()) / 100.0 / 12.0;
+                                                        int n = loan.getTermMonths();
 
-                                                            if (monthlyRate > 0) {
-                                                                monthlyInstallment = principal * (monthlyRate / (1 - Math.pow(1 + monthlyRate, -n)));
-                                                            } else {
-                                                                // caso sin interés
-                                                                monthlyInstallment = principal / n;
-                                                            }
+                                                        if (monthlyRate > 0) {
+                                                            monthlyInstallment = principal * (monthlyRate / (1 - Math.pow(1 + monthlyRate, -n)));
+                                                        } else {
+                                                            monthlyInstallment = principal / n;
                                                         }
+                                                        // redondeamos a 3 decimales
+                                                        monthlyInstallment = Math.round(monthlyInstallment * 1000.0) / 1000.0;
+                                                    }
 
-                                                        // mapeamos los datos al DTO LoanUserInfo
-                                                        return LoanUserInfo.builder()
-                                                                .applicationId(loan.getApplicationId())
-                                                                .document(loan.getDocument())
-                                                                .amount(loan.getAmount())
-                                                                .termMonths(loan.getTermMonths())
-                                                                .loanType(loan.getLoanType())
-                                                                .loanState(loan.getLoanState())
-                                                                .interestRate(loan.getInterestRate())
-                                                                .email(loan.getEmail())
-                                                                .name(user != null ? user.getName() : null)
-                                                                .lastName(user != null ? user.getLastName() : null)
-                                                                .baseSalary(user != null ? user.getBaseSalary() : null)
-                                                                .monthlyInstallment(monthlyInstallment)
-                                                                .build();
-                                                    })
-                                            )
+                                                    return LoanUserInfo.builder()
+                                                            .applicationId(loan.getApplicationId())
+                                                            .document(loan.getDocument())
+                                                            .amount(loan.getAmount())
+                                                            .termMonths(loan.getTermMonths())
+                                                            .loanType(loan.getLoanType())
+                                                            .loanState(loan.getLoanState())
+                                                            .interestRate(loan.getInterestRate())
+                                                            .email(loan.getEmail())
+                                                            .name(user != null ? user.getName() : null)
+                                                            .lastName(user != null ? user.getLastName() : null)
+                                                            .baseSalary(user != null ? user.getBaseSalary() : null)
+                                                            .monthlyInstallment(monthlyInstallment)
+                                                            .build();
+                                                }).toList();
+
+                                                // cálculo del total de cuotas mensuales de préstamos aprobados
+                                                double totalApproved = loanUserInfos.stream()
+                                                        .filter(l -> "APPROVED".equalsIgnoreCase(l.getLoanState()))
+                                                        .map(LoanUserInfo::getMonthlyInstallment)
+                                                        .filter(Objects::nonNull)
+                                                        .mapToDouble(Double::doubleValue)
+                                                        .sum();
+
+                                                return LoanUserReport.builder()
+                                                        .loanUserInfo(loanUserInfos)
+                                                        .totalMonthlyInstallmentApproved(
+                                                                Math.round(totalApproved * 1000.0) / 1000.0
+                                                        )
+                                                        .build();
+                                            })
                             );
-                })
-                .doOnComplete(() -> logger.info("Finished fetching all loan and user info"));
+                });
     }
-
-
 
 
 

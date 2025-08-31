@@ -55,9 +55,7 @@ public class LoanApplicationHandler {
 
 
         return  loanApplicationUseCase.getLoanApplicationReport(id, document, term, loanType, state, page, size)
-                .collectList()
                 .flatMap(loanApplicationsList -> {
-                    log.info("Returning {} loanApplications", loanApplicationsList.size());
                     return ServerResponse.ok()
                             .contentType(MediaType.APPLICATION_JSON)
                             .bodyValue(loanApplicationsList);
