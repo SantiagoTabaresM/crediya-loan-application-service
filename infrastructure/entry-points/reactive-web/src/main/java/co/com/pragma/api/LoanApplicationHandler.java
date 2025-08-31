@@ -54,12 +54,14 @@ public class LoanApplicationHandler {
         Integer size = Integer.parseInt(serverRequest.queryParam("size").orElse("10"));
 
 
+
         return  loanApplicationUseCase.getLoanApplicationReport(id, document, term, loanType, state, page, size)
-                .flatMap(loanApplicationsList -> {
-                    return ServerResponse.ok()
-                            .contentType(MediaType.APPLICATION_JSON)
-                            .bodyValue(loanApplicationsList);
-                })
+                .map(loanApplicationDTOMapper::toLoanUserReportDTO)
+                .flatMap(loanApplicationsList ->
+                     ServerResponse.ok()
+                             .contentType(MediaType.APPLICATION_JSON)
+                             .bodyValue(loanApplicationsList)
+                )
                 .doOnError(e -> log.error("Error fetching loanApplications", e))
                 .doOnSuccess(resp -> log.info("Successfully returned all loanApplications"));
     }
