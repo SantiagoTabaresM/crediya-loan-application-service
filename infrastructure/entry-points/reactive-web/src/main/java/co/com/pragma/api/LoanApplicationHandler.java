@@ -4,11 +4,13 @@ import co.com.pragma.api.dto.CreateLoanApplicationDTO;
 import co.com.pragma.api.dto.UpdateLoanApplicationDTO;
 import co.com.pragma.api.mapper.LoanApplicationDTOMapper;
 
+import co.com.pragma.api.validator.Validator;
 import co.com.pragma.usecase.loanapplication.ILoanApplicationUseCase;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.http.MediaType;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.server.ServerRequest;
 import org.springframework.web.reactive.function.server.ServerResponse;
@@ -22,6 +24,7 @@ public class LoanApplicationHandler {
 
     private final ILoanApplicationUseCase loanApplicationUseCase;
     private final LoanApplicationDTOMapper loanApplicationDTOMapper;
+    private final Validator validator;
 
 
 
@@ -30,9 +33,10 @@ public class LoanApplicationHandler {
         Mono<CreateLoanApplicationDTO> loanApplicationMono = serverRequest.bodyToMono(CreateLoanApplicationDTO.class);
         return loanApplicationMono
                 .doOnNext(dto -> log.info("Incoming LoanApplicationDTO: {}", dto))
+                .flatMap(validator::validateUserLoanApplicationToken)
                 .map(loanApplicationDTOMapper::toLoanApplication)
                 .flatMap(loanApplicationUseCase::saveLoanApplication)
-                //.map(loanApplicationDTOMapper::toLoanApplicationDTO)
+                .map(loanApplicationDTOMapper::toLoanApplicationDTO)
                 .flatMap(savedLoanApplication -> ServerResponse.ok()
                         .contentType(MediaType.APPLICATION_JSON)
                         .bodyValue(savedLoanApplication))
@@ -41,6 +45,8 @@ public class LoanApplicationHandler {
     }
 
 
+
+    @PreAuthorize("hasRole('ADMIN') or hasRole('ADVISOR')")
     public Mono<ServerResponse> listenGetLoanApplicationsReport(ServerRequest serverRequest) {
         log.info("Received request to create report LoanApplication");
 

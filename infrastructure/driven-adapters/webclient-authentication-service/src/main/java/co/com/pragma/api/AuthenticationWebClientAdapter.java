@@ -19,18 +19,18 @@ public class AuthenticationWebClientAdapter implements LoanApplicationWebClient 
         this.webClient = webClient;
     }
 
-    public Mono<Boolean> checkUserExists(String document, String email, String jwt) {
+    public Mono<Boolean> checkUserExists(String document, String email) {
         return webClient.get()
                 .uri(USERS_EXISTS, document, email ) // endpoint del microservicio de autenticación
-                .header(HttpHeaders.AUTHORIZATION, "Bearer " + jwt)
+               // .header(HttpHeaders.AUTHORIZATION, "Bearer " + jwt)
                 .retrieve()
                 .bodyToMono(Boolean.class);
     }
 
-    public Flux<UserInfo> getUsersByDocuments(String[] documents, String jwt) {
+    public Flux<UserInfo> getUsersByDocuments(String[] documents) {
         return webClient.post()
                 .uri(USERS_DOCUMENT) // endpoint del microservicio de autenticación
-                .header(HttpHeaders.AUTHORIZATION, "Bearer " + jwt)
+               // .header(HttpHeaders.AUTHORIZATION, "Bearer " + jwt)
                 .bodyValue(documents)
                 .retrieve()
                 .bodyToFlux(UserInfo.class);

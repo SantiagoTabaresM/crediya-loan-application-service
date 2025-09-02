@@ -6,8 +6,8 @@ import reactor.core.publisher.Mono;
 
 public interface LoanApplicationWebClient {
 
-    Mono<Boolean> checkUserExists(String document, String email, String jwt);
+    Mono<Boolean> checkUserExists(String document, String email);
 
-    Flux<UserInfo> getUsersByDocuments(String[] documents, String jwt);
+    Flux<UserInfo> getUsersByDocuments(String[] documents);
 
 }

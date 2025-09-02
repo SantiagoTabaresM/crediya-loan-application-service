@@ -5,7 +5,6 @@ import co.com.pragma.model.loanapplication.gateways.LoanApplicationRepository;
 import co.com.pragma.model.loanapplication.gateways.LoanApplicationWebClient;
 import co.com.pragma.model.loantype.gateways.LoanTypeRepository;
 import co.com.pragma.model.utils.gateways.Logger;
-import co.com.pragma.model.utils.gateways.SecurityUtilsPort;
 import co.com.pragma.model.utils.gateways.TxOperational;
 import co.com.pragma.usecase.exception.BussinesException;
 import lombok.RequiredArgsConstructor;
@@ -47,7 +46,6 @@ public class LoanApplicationUseCase implements ILoanApplicationUseCase  {
 
 
     private final Logger logger;
-    private final SecurityUtilsPort securityUtils;
     private final TxOperational txOperational;
 
 
@@ -71,7 +69,6 @@ public class LoanApplicationUseCase implements ILoanApplicationUseCase  {
             return validate(loanApplication, this::validateCreateLoanApplication)
                     .flatMap(this::validateLoanType)
                     .flatMap(this::validateUserExist)
-                    .flatMap(this::validateUserLoanApplicationToken)
                     .flatMap(this::saveLoanApplicationRepository);
         });
     }
@@ -100,47 +97,26 @@ public class LoanApplicationUseCase implements ILoanApplicationUseCase  {
      * Valida que el usuario exista en el microservicio de usuarios.
      */
     private Mono<LoanApplication> validateUserExist(LoanApplication loanApplication) {
-        return securityUtils.getUserToken() // aquí obtienes el Mono<String> del token
-                .flatMap(token ->
-                        loanApplicationWebClient.checkUserExists(
-                                        loanApplication.getDocument(),
-                                        loanApplication.getEmail(),
-                                        token
-                                )
-                                .flatMap(userExists -> {
-                                    if (Boolean.FALSE.equals(userExists)) {
-                                        return Mono.error(new BussinesException(
-                                                ERROR_VALIDATION,
-                                                buildError(FIELD_USER,
-                                                        "User with document " + loanApplication.getDocument() +
-                                                                " and email " + loanApplication.getEmail() + " " + ERROR_DONT_EXIST)
-                                        ));
-                                    }
-
-                                    loanApplication.setStateId(PENDING_STATE);
-
-                                    return Mono.just(loanApplication);
-                                })
-                );
-    }
-
-
-    /**
-     * Valida que el document del préstamo sea igual al del token.
-     */
-    private Mono<LoanApplication> validateUserLoanApplicationToken(LoanApplication loanApplication) {
-        return securityUtils.getDocument()
-                .flatMap(document -> {
-                    if (!loanApplication.getDocument().equals(document)) {
+        return loanApplicationWebClient.checkUserExists(
+                        loanApplication.getDocument(),
+                        loanApplication.getEmail()
+                )
+                .flatMap(userExists -> {
+                    if (Boolean.FALSE.equals(userExists)) {
                         return Mono.error(new BussinesException(
                                 ERROR_VALIDATION,
                                 buildError(FIELD_USER,
-                                        "You can only create loan applications for yourself.")
+                                        "User with document " + loanApplication.getDocument() +
+                                                " and email " + loanApplication.getEmail() + " " + ERROR_DONT_EXIST)
                         ));
                     }
+
+                    loanApplication.setStateId(PENDING_STATE);
+
                     return Mono.just(loanApplication);
                 });
     }
+
 
 
 
@@ -186,14 +162,9 @@ public class LoanApplicationUseCase implements ILoanApplicationUseCase  {
                             .map(LoanInfo::getDocument)
                             .toArray(String[]::new);
 
-                    return securityUtils.getUserToken()
-                            .flatMap(jwt ->
-                                    // Consulta al microservicio de autenticación para obtener la información de los usuarios por sus documentos
-                                    loanApplicationWebClient.getUsersByDocuments(documents, jwt)
-                                            .collectList()
-                                            // Construye el informe combinando la información de préstamos y usuarios
-                                            .map(users -> buildLoanUserReport(loans, users))
-                            );
+                    return loanApplicationWebClient.getUsersByDocuments(documents)
+                            .collectList()
+                            .map(users -> buildLoanUserReport(loans, users));
                 })
                 .doOnSuccess(report -> logger.info("Loan report generated with " + report.getLoanUserInfo().size() +
                                 " loans. Total approved installments: " + report.getTotalMonthlyInstallmentApproved()
@@ -313,7 +284,7 @@ public class LoanApplicationUseCase implements ILoanApplicationUseCase  {
                     }
 
                     // si cambió usuario/email → validamos en el micro
-                    return loanApplicationWebClient.checkUserExists(loanApplication.getDocument(), loanApplication.getEmail(), "")
+                    return loanApplicationWebClient.checkUserExists(loanApplication.getDocument(), loanApplication.getEmail())
                             .flatMap(userExists -> {
                                 if (Boolean.FALSE.equals(userExists)) {
                                     return Mono.error(new BussinesException(

@@ -1,6 +1,6 @@
 package co.com.pragma.api.config;
 
-import co.com.pragma.model.utils.gateways.SecurityUtilsPort;
+
 import org.springframework.security.core.context.ReactiveSecurityContextHolder;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
@@ -9,12 +9,11 @@ import reactor.core.publisher.Mono;
 
 
 @Component
-public class SecurityUtilsAdapter implements SecurityUtilsPort {
+public class SecurityUtils {
 
     /**
      * Obtiene el ID del usuario desde el JWT.
      */
-    @Override
     public  Mono<String> getDocument() {
         return ReactiveSecurityContextHolder.getContext()
                 .map(SecurityContext::getAuthentication)
@@ -26,7 +25,6 @@ public class SecurityUtilsAdapter implements SecurityUtilsPort {
     /**
      * Obtiene un único rol del usuario desde el JWT (el primero si hay varios).
      */
-    @Override
     public  Mono<String> getUserRole() {
         return ReactiveSecurityContextHolder.getContext()
                 .map(SecurityContext::getAuthentication)
@@ -41,7 +39,6 @@ public class SecurityUtilsAdapter implements SecurityUtilsPort {
     /**
      * Obtiene el token JWT completo en formato String.
      */
-    @Override
     public Mono<String> getUserToken() {
         return ReactiveSecurityContextHolder.getContext()
                 .map(SecurityContext::getAuthentication)
