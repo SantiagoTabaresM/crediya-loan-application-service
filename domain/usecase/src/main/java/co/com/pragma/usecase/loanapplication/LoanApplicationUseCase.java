@@ -1,6 +1,6 @@
 package co.com.pragma.usecase.loanapplication;
 
-import co.com.pragma.model.loanapplication.LoanApplication;
+import co.com.pragma.model.loanapplication.*;
 import co.com.pragma.model.loanapplication.gateways.LoanApplicationRepository;
 import co.com.pragma.model.loanapplication.gateways.LoanApplicationWebClient;
 import co.com.pragma.model.loantype.gateways.LoanTypeRepository;
@@ -12,7 +12,9 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.Function;
 import java.util.regex.Pattern;
 
@@ -47,16 +49,34 @@ public class LoanApplicationUseCase implements ILoanApplicationUseCase  {
     private final TxOperational txOperational;
 
 
+    /**
+     * Guarda una solicitud de préstamo en el repositorio.
+     *
+     * Este método realiza las siguientes validaciones antes de guardar la solicitud:
+     * 1. Valida los campos de la solicitud de préstamo utilizando `validateCreateLoanApplication`.
+     * 2. Verifica que el tipo de préstamo exista en el repositorio.
+     * 3. Comprueba que el usuario asociado a la solicitud exista en el microservicio de usuarios con documento e email.
+     * 3. Valida que el documento del usuario en la solicitud coincida con el documento del token del usuario autenticado.
+     *
+     * Si todas las validaciones son exitosas, la solicitud se guarda en el repositorio con un estado pendiente.
+     *
+     * @param loanApplication La solicitud de préstamo que se desea guardar.
+     * @return Un `Mono<LoanApplication>` que emite la solicitud de préstamo guardada si todas las validaciones son exitosas.
+     */
     public Mono<LoanApplication> saveLoanApplication(LoanApplication loanApplication) {
         return txOperational.execute(() -> {
             logger.info("Attempting to save loan application for document: " + loanApplication.getDocument());
             return validate(loanApplication, this::validateCreateLoanApplication)
                     .flatMap(this::validateLoanType)
-                    .flatMap(this::validateUserAndSave);
+                    .flatMap(this::validateUserExist)
+                    .flatMap(this::saveLoanApplicationRepository);
         });
     }
 
 
+    /**
+     * Valida que el tipo de préstamo exista.
+     */
     private Mono<LoanApplication> validateLoanType(LoanApplication loanApplication) {
         return loanTypeRepository.existsById(loanApplication.getLoanTypeId())
                 .flatMap(exists -> {
@@ -71,8 +91,16 @@ public class LoanApplicationUseCase implements ILoanApplicationUseCase  {
                 });
     }
 
-    private Mono<LoanApplication> validateUserAndSave(LoanApplication loanApplication) {
-        return loanApplicationWebClient.checkUserExists(loanApplication.getDocument(), loanApplication.getEmail())
+
+
+    /**
+     * Valida que el usuario exista en el microservicio de usuarios.
+     */
+    private Mono<LoanApplication> validateUserExist(LoanApplication loanApplication) {
+        return loanApplicationWebClient.checkUserExists(
+                        loanApplication.getDocument(),
+                        loanApplication.getEmail()
+                )
                 .flatMap(userExists -> {
                     if (Boolean.FALSE.equals(userExists)) {
                         return Mono.error(new BussinesException(
@@ -85,12 +113,155 @@ public class LoanApplicationUseCase implements ILoanApplicationUseCase  {
 
                     loanApplication.setStateId(PENDING_STATE);
 
-                    return loanApplicationRepository.save(loanApplication)
-                            .doOnSuccess(saved -> logger.info("Loan application saved successfully with id: "+ saved.getApplicationId()));
+                    return Mono.just(loanApplication);
                 });
     }
 
 
+
+
+    /**
+     * Guarda la solicitud en estado pendiente.
+     */
+    private Mono<LoanApplication> saveLoanApplicationRepository(LoanApplication loanApplication) {
+        loanApplication.setStateId(PENDING_STATE);
+        return loanApplicationRepository.save(loanApplication)
+                .doOnSuccess(saved ->
+                        logger.info("Loan application saved successfully with id:" +  saved.getApplicationId())
+                );
+    }
+
+
+    /**
+     * Genera un informe de solicitudes de préstamo basado en los parámetros proporcionados.
+     *
+     * Este método realiza los siguientes pasos:
+     * 1. Recupera las solicitudes de préstamo desde el repositorio según los filtros proporcionados.
+     * 2. Obtiene los documentos de las solicitudes recuperadas.
+     * 3. Recupera la información de los usuarios asociados a los documentos utilizando un cliente web (microservicio de autenticación).
+     * 4. Construye un informe que incluye información de las solicitudes y los usuarios.
+     * 5. Registra un mensaje de éxito con el número de préstamos y el total de cuotas mensuales aprobadas.
+     *
+     * @param id        El identificador de la solicitud de préstamo (opcional).
+     * @param document  El documento del usuario asociado a la solicitud (opcional).
+     * @param term      El plazo del préstamo en meses (opcional).
+     * @param loanType  El tipo de préstamo (opcional).
+     * @param state     El estado de la solicitud de préstamo (opcional).
+     * @param page      El número de página para la paginación.
+     * @param size      El tamaño de la página para la paginación.
+     * @return Un `Mono<LoanUserReport>` que emite el informe generado.
+     */
+
+    @Override
+    public Mono<LoanUserReport> getLoanApplicationReport(Integer id, String document, Integer term,
+                                                         String loanType, String state, Integer page, Integer size) {
+        return loanApplicationRepository.getLoanApplicationsReport(id, document, term, loanType, state, page, size)
+                .collectList()
+                .flatMap(loans -> {
+                    String[] documents = loans.stream()
+                            .map(LoanInfo::getDocument)
+                            .toArray(String[]::new);
+
+                    return loanApplicationWebClient.getUsersByDocuments(documents)
+                            .collectList()
+                            .map(users -> buildLoanUserReport(loans, users));
+                })
+                .doOnSuccess(report -> logger.info("Loan report generated with " + report.getLoanUserInfo().size() +
+                                " loans. Total approved installments: " + report.getTotalMonthlyInstallmentApproved()
+                ));
+    }
+
+    // Construye el informe combinando la información de préstamos y usuarios.
+    private LoanUserReport buildLoanUserReport(List<LoanInfo> loans, List<UserInfo> users) {
+        List<LoanUserInfo> loanUserInfos = loans.stream()
+                // mapea cada solicitud de préstamo con la información del usuario correspondiente tras buscar por documento
+                .map(loan -> mapToLoanUserInfo(loan, findUserByDocument(users, loan.getDocument())))
+                .toList();
+
+        // Suma las cuotas mensuales de los préstamos aprobados
+        double totalApproved = loanUserInfos.stream()
+                .filter(l -> "APPROVED".equalsIgnoreCase(l.getLoanState()))
+                .map(LoanUserInfo::getMonthlyInstallment)
+                .filter(Objects::nonNull)
+                .mapToDouble(Double::doubleValue)
+                .sum();
+
+        // Redondea a tres decimales y construye el informe final
+        return LoanUserReport.builder()
+                .loanUserInfo(loanUserInfos)
+                .totalMonthlyInstallmentApproved(roundToThreeDecimals(totalApproved))
+                .build();
+    }
+
+    // Mapea la información de una solicitud de préstamo y un usuario a un objeto LoanUserInfo
+    private LoanUserInfo mapToLoanUserInfo(LoanInfo loan, UserInfo user) {
+        return LoanUserInfo.builder()
+                .applicationId(loan.getApplicationId())
+                .document(loan.getDocument())
+                .amount(loan.getAmount())
+                .termMonths(loan.getTermMonths())
+                .loanType(loan.getLoanType())
+                .loanState(loan.getLoanState())
+                .interestRate(loan.getInterestRate())
+                .email(loan.getEmail())
+                .name(user != null ? user.getName() : null)
+                .lastName(user != null ? user.getLastName() : null)
+                .baseSalary(user != null ? user.getBaseSalary() : null)
+                .monthlyInstallment(calculateMonthlyInstallment(loan))
+                .build();
+    }
+
+    // Busca un usuario en la lista por su documento
+    private UserInfo findUserByDocument(List<UserInfo> users, String document) {
+        return users.stream()
+                .filter(u -> u.getDocument().equals(document))
+                .findFirst()
+                .orElse(null);
+    }
+
+    // Calcula la cuota mensual de un préstamo utilizando la fórmula de amortización
+    private Double calculateMonthlyInstallment(LoanInfo loan) {
+        if (loan.getAmount() == null || loan.getTermMonths() == null || loan.getInterestRate() == null) {
+            return null;
+        }
+
+        double principal = loan.getAmount();
+        // tasa de interés mensual
+        double monthlyRate = Double.parseDouble(loan.getInterestRate()) / 100.0 / 12.0;
+        int n = loan.getTermMonths();
+
+        double installment;
+        // fórmula de amortización (cuota fija) P * (r(1+r)^n) / ((1+r)^n -1)
+        if (monthlyRate > 0) {
+            installment = principal * (monthlyRate / (1 - Math.pow(1 + monthlyRate, -n)));
+        } else {
+            installment = principal / n;
+        }
+
+        return roundToThreeDecimals(installment);
+    }
+
+    // Redondea un valor a tres decimales
+    private double roundToThreeDecimals(double value) {
+        return Math.round(value * 1000.0) / 1000.0;
+    }
+
+
+
+
+    /**
+     * Actualiza una solicitud de préstamo en el repositorio.
+     *
+     * Este método realiza las siguientes validaciones antes de actualizar la solicitud:
+     * 1. Valida los campos de la solicitud de préstamo utilizando `validateUpdateloanApplication`.
+     * 2. Verifica que el tipo de préstamo exista en el repositorio.
+     * 3. Comprueba que el usuario asociado a la solicitud exista en el microservicio de usuarios con documento e email si es que hubo cambios en estos campos.
+     *
+     * Si todas las validaciones son exitosas, la solicitud se actualiza en el repositorio.
+     *
+     * @param loanApplication La solicitud de préstamo que se desea actualizar.
+     * @return Un `Mono<LoanApplication>` que emite la solicitud de préstamo actualizada si todas las validaciones son exitosas.
+     */
     public Mono<LoanApplication> updateLoanApplication(LoanApplication loanApplication) {
         return txOperational.execute(() -> {
             logger.info("Attempting to save loan application for document: " + loanApplication.getDocument());
@@ -133,7 +304,6 @@ public class LoanApplicationUseCase implements ILoanApplicationUseCase  {
 
 
 
-
     public Flux<LoanApplication> getAllLoanApplications() {
         logger.info("Fetching all loan applications");
         return loanApplicationRepository.findAll()
@@ -162,6 +332,8 @@ public class LoanApplicationUseCase implements ILoanApplicationUseCase  {
 
 
 
+
+    // Validaciones de campos para crear y actualizar LoanApplication
     private Map<String, String> validateCreateLoanApplication(LoanApplication loanApplication) {
         Map<String, String> errors = createErrorMap();
         // Validar amount
@@ -185,19 +357,19 @@ public class LoanApplicationUseCase implements ILoanApplicationUseCase  {
         return errors;
     }
 
-
     private Map<String, String> validateUpdateloanApplication(LoanApplication loanApplication) {
         return validateCreateLoanApplication(loanApplication);
     }
 
 
-
+    // Construye un mapa de error con un solo campo y mensaje, y registra el error
     private Map<String, String> buildError(String field, String message) {
         Map<String, String> errors = createErrorMap();
         errors.put(field, message);
         logger.error("Validation failed for " + field + ": " +message, null);
         return errors;
     }
+
 
 
     /**

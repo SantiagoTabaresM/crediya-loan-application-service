@@ -1,7 +1,6 @@
 package co.com.pragma.api.config;
 
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
+
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -11,9 +10,9 @@ import org.springframework.security.config.annotation.method.configuration.Enabl
 import org.springframework.security.config.annotation.web.reactive.EnableWebFluxSecurity;
 import org.springframework.security.config.web.server.ServerHttpSecurity;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
-import org.springframework.security.oauth2.core.DelegatingOAuth2TokenValidator;
+
 import org.springframework.security.oauth2.jwt.Jwt;
-import org.springframework.security.oauth2.jwt.JwtClaimValidator;
+
 import org.springframework.security.oauth2.jwt.JwtValidators;
 import org.springframework.security.oauth2.jwt.NimbusReactiveJwtDecoder;
 import org.springframework.security.oauth2.jwt.ReactiveJwtDecoder;
@@ -23,11 +22,14 @@ import org.springframework.security.web.server.SecurityWebFilterChain;
 import org.springframework.web.reactive.config.WebFluxConfigurer;
 import reactor.core.publisher.Mono;
 
-import java.io.IOException;
+
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 import lombok.extern.log4j.Log4j2;
+
+import javax.crypto.SecretKey;
+import javax.crypto.spec.SecretKeySpec;
 
 @Log4j2
 @Configuration
@@ -35,68 +37,86 @@ import lombok.extern.log4j.Log4j2;
 @EnableReactiveMethodSecurity
 public class AuthorizationJwt implements WebFluxConfigurer {
 
-    private final String issuerUri;
-    private final String clientId;
+    private final String secretKey;
     private final String jsonExpRoles;
 
-    private final ObjectMapper mapper;
     private static final String ROLE = "ROLE_";
-    private static final String AZP = "azp";
 
-    public AuthorizationJwt(@Value("${spring.security.oauth2.resourceserver.jwt.issuer-uri}") String issuerUri,
-                         @Value("${spring.security.oauth2.resourceserver.jwt.client-id}") String clientId,
-                         @Value("${jwt.json-exp-roles}") String jsonExpRoles,
-                         ObjectMapper mapper) {
-        this.issuerUri = issuerUri;
-        this.clientId = clientId;
+    public AuthorizationJwt(@Value("${jwt.secret-key}") String secretKey,
+                            @Value("${jwt.json-exp-roles}") String jsonExpRoles) {
+        this.secretKey = secretKey;
         this.jsonExpRoles = jsonExpRoles;
-        this.mapper = mapper;
     }
 
     @Bean
     public SecurityWebFilterChain filterChain(ServerHttpSecurity http) {
-        return http
-                .csrf(csrf -> csrf.disable()) // Forma recomendada en Spring Security 6.1+
-                .authorizeExchange(auth -> auth
-                        .anyExchange().permitAll() // permite todas las rutas
+        http
+                .csrf(ServerHttpSecurity.CsrfSpec::disable)
+                .authorizeExchange(authorize -> authorize
+                        .pathMatchers("webjars/swagger-ui/**", "/v3/api-docs/**").permitAll()
+                        .anyExchange().authenticated() // Todas las demás rutas requieren autenticación
                 )
-                .build();
+                .oauth2ResourceServer(oauth2 ->
+                        oauth2.jwt(jwtSpec ->
+                                jwtSpec
+                                        .jwtDecoder(jwtDecoder())
+                                        .jwtAuthenticationConverter(grantedAuthoritiesExtractor())
+                        )
+                );
+        return http.build();
     }
 
+    @Bean
     public ReactiveJwtDecoder jwtDecoder() {
-        var defaultValidator = JwtValidators.createDefaultWithIssuer(issuerUri);
-        var audienceValidator = new JwtClaimValidator<String>(AZP,
-                azp -> azp != null && !azp.isEmpty() && azp.equals(clientId));
-        var tokenValidator = new DelegatingOAuth2TokenValidator<>(defaultValidator, audienceValidator);
-        var jwtDecoder = NimbusReactiveJwtDecoder
-                .withIssuerLocation(issuerUri)
-                .build();
+        // Convertir secretKey a SecretKey
+        SecretKey key = new SecretKeySpec(secretKey.getBytes(StandardCharsets.UTF_8), "HmacSHA256");
 
-        jwtDecoder.setJwtValidator(tokenValidator);
+        NimbusReactiveJwtDecoder jwtDecoder = NimbusReactiveJwtDecoder.withSecretKey(key).build();
+
+        // Validadores opcionales
+        jwtDecoder.setJwtValidator(JwtValidators.createDefault());
+
         return jwtDecoder;
     }
 
+
     public Converter<Jwt, Mono<AbstractAuthenticationToken>> grantedAuthoritiesExtractor() {
         var jwtConverter = new JwtAuthenticationConverter();
-        jwtConverter.setJwtGrantedAuthoritiesConverter(jwt ->
-                getRoles(jwt.getClaims(), jsonExpRoles)
-                .stream()
-                .map(ROLE::concat)
-                .map(SimpleGrantedAuthority::new)
-                .collect(Collectors.toList()));
+        jwtConverter.setJwtGrantedAuthoritiesConverter(jwt -> {
+            String role = getRole(jwt.getClaims(), jsonExpRoles);
+            if (role != null && !role.trim().isEmpty()) {
+                String formattedRole = role.startsWith(ROLE) ? role : ROLE + role;
+                return List.of(new SimpleGrantedAuthority(formattedRole));
+            }
+            log.warn("No role found in JWT for claim: {}", jsonExpRoles);
+            return List.of();
+        });
         return new ReactiveJwtAuthenticationConverterAdapter(jwtConverter);
     }
 
-    private List<String> getRoles(Map<String, Object> claims, String jsonExpClaim){
-        List<String> roles = List.of();
+    private String getRole(Map<String, Object> claims, String jsonExpClaim){
         try {
-            var json = mapper.writeValueAsString(claims);
-            var chunk = mapper.readTree(json).at(jsonExpClaim);
-            return mapper.readerFor(new TypeReference<List<String>>() {})
-                    .readValue(chunk);
-        } catch (IOException e) {
+
+            Object value = claims.get(jsonExpClaim);
+            // Si el claim es directo (no anidado)
+            if (value != null) {
+                return value.toString();
+            }
+
+            // Si es path anidado (ej: "realm_access.role")
+            if (jsonExpClaim.contains(".")) {
+                String[] parts = jsonExpClaim.split("\\.", 2); // Split solo una vez
+                Object nested = claims.get(parts[0]);
+                if (nested instanceof Map) {
+                    return getRole((Map<String, Object>) nested, parts[1]);
+                }
+            }
+
+            return null;
+
+        } catch (Exception  e) {
             log.error(e.getMessage());
-            return roles;
+            return null;
         }
     }
 }

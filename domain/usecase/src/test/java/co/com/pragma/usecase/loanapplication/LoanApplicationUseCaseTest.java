@@ -1,7 +1,7 @@
 package co.com.pragma.usecase.loanapplication;
 
 
-import co.com.pragma.model.loanapplication.LoanApplication;
+import co.com.pragma.model.loanapplication.*;
 import co.com.pragma.model.loanapplication.gateways.LoanApplicationRepository;
 import co.com.pragma.model.loanapplication.gateways.LoanApplicationWebClient;
 import co.com.pragma.model.loantype.gateways.LoanTypeRepository;
@@ -15,12 +15,14 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 
 import java.util.Map;
 import java.util.function.Supplier;
 
+import static org.assertj.core.api.AssertionsForInterfaceTypes.assertThat;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -79,6 +81,7 @@ class LoanApplicationUseCaseTest {
         when(loanApplicationWebClient.checkUserExists(validLoanApplication.getDocument(), validLoanApplication.getEmail()))
                 .thenReturn(Mono.just(true));
         when(loanApplicationRepository.save(validLoanApplication)).thenReturn(Mono.just(validLoanApplication));
+
         when(txOperational.execute(any())).thenAnswer(invocation -> {
             // Ejecuta el supplier pasado
             return ((Supplier<Mono<LoanApplication>>) invocation.getArgument(0)).get();
@@ -302,5 +305,140 @@ class LoanApplicationUseCaseTest {
 
 
 
+    @Test
+    void testGetLoanApplicationReport_CreatedSuccessfully() {
 
+
+        LoanInfo loan1 = LoanInfo.builder()
+                .applicationId(1)
+                .document("123")
+                .amount(10000.0)
+                .termMonths(12)
+                .loanType("PERSONAL")
+                .loanState("APPROVED")
+                .interestRate("12")
+                .build();
+
+        LoanInfo loan2 = LoanInfo.builder()
+                .applicationId(2)
+                .document("456")
+                .amount(5000.0)
+                .termMonths(10)
+                .loanType("VEHICLE")
+                .loanState("PENDING")
+                .interestRate("10")
+                .build();
+
+        UserInfo user1 = UserInfo.builder()
+                .document("123")
+                .name("John")
+                .lastName("Doe")
+                .baseSalary(2000)
+                .build();
+
+        UserInfo user2 = UserInfo.builder()
+                .document("456")
+                .name("Jane")
+                .lastName("Smith")
+                .baseSalary(3000)
+                .build();
+
+
+        when(loanApplicationRepository.getLoanApplicationsReport(any(), any(), any(), any(), any(), any(), any()))
+                .thenReturn(Flux.just(loan1, loan2));
+
+        when(loanApplicationWebClient.getUsersByDocuments(any()))
+                .thenReturn(Flux.just(user1, user2));
+
+
+
+        // when
+        Mono<LoanUserReport> result = loanApplicationUseCase.getLoanApplicationReport(null, null, null, null, null, null, null);
+
+        // then
+        StepVerifier.create(result)
+                .assertNext(report -> {
+                    assertThat(report.getLoanUserInfo()).hasSize(2);
+
+                    LoanUserInfo first = report.getLoanUserInfo().get(0);
+                    assertThat(first.getDocument()).isEqualTo("123");
+                    assertThat(first.getName()).isEqualTo("John");
+                    assertThat(first.getMonthlyInstallment()).isNotNull();
+
+                    // totalApproved solo debe sumar el loan1 porque está APPROVED
+                    assertThat(report.getTotalMonthlyInstallmentApproved()).isGreaterThan(0.0);
+                })
+                .verifyComplete();
+    }
+
+
+
+
+    @Test
+    void shouldHandleLoanWithoutUserMatch() {
+        // given
+         LoanInfo loan = LoanInfo.builder()
+                .applicationId(3)
+                .document("999")
+                .amount(5000.0)
+                .termMonths(10)
+                .loanType("PERSONAL")
+                .loanState("APPROVED")
+                .interestRate("10")
+                .build();
+
+
+        when(loanApplicationRepository.getLoanApplicationsReport(any(), any(), any(), any(), any(), any(), any()))
+                .thenReturn(Flux.just(loan));
+
+        when(loanApplicationWebClient.getUsersByDocuments(any()))
+                .thenReturn(Flux.empty());
+
+        // when
+        Mono<LoanUserReport> result = loanApplicationUseCase.getLoanApplicationReport(null, null, null, null, null, null, null);
+
+        // then
+        StepVerifier.create(result)
+                .assertNext(report -> {
+                    assertThat(report.getLoanUserInfo()).hasSize(1);
+
+                    LoanUserInfo info = report.getLoanUserInfo().get(0);
+                    assertThat(info.getName()).isNull(); // porque no hay usuario
+                    assertThat(info.getMonthlyInstallment()).isNotNull();
+                })
+                .verifyComplete();
+    }
+
+    @Test
+    void shouldReturnNullMonthlyInstallmentIfDataMissing() {
+        // given
+        LoanInfo loan = LoanInfo.builder()
+                .applicationId(3)
+                .document("888")
+                .amount(null) // falta amount
+                .termMonths(10)
+                .loanType("PERSONAL")
+                .loanState("APPROVED")
+                .interestRate("10")
+                .build();
+
+
+        when(loanApplicationRepository.getLoanApplicationsReport(any(), any(), any(), any(), any(), any(), any()))
+                .thenReturn(Flux.just(loan));
+
+        when(loanApplicationWebClient.getUsersByDocuments(any()))
+                .thenReturn(Flux.just(new UserInfo("888", "No", "Salary", 0)));
+
+        // when
+        Mono<LoanUserReport> result = loanApplicationUseCase.getLoanApplicationReport(null, null, null, null, null, null, null);
+
+        // then
+        StepVerifier.create(result)
+                .assertNext(report -> {
+                    LoanUserInfo info = report.getLoanUserInfo().get(0);
+                    assertThat(info.getMonthlyInstallment()).isNull(); // falta amount
+                })
+                .verifyComplete();
+    }
 }
+

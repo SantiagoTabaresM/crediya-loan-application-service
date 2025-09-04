@@ -4,11 +4,13 @@ import co.com.pragma.api.dto.CreateLoanApplicationDTO;
 import co.com.pragma.api.dto.UpdateLoanApplicationDTO;
 import co.com.pragma.api.mapper.LoanApplicationDTOMapper;
 
+import co.com.pragma.api.validator.Validator;
 import co.com.pragma.usecase.loanapplication.ILoanApplicationUseCase;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.http.MediaType;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.server.ServerRequest;
 import org.springframework.web.reactive.function.server.ServerResponse;
@@ -22,6 +24,7 @@ public class LoanApplicationHandler {
 
     private final ILoanApplicationUseCase loanApplicationUseCase;
     private final LoanApplicationDTOMapper loanApplicationDTOMapper;
+    private final Validator validator;
 
 
 
@@ -30,6 +33,7 @@ public class LoanApplicationHandler {
         Mono<CreateLoanApplicationDTO> loanApplicationMono = serverRequest.bodyToMono(CreateLoanApplicationDTO.class);
         return loanApplicationMono
                 .doOnNext(dto -> log.info("Incoming LoanApplicationDTO: {}", dto))
+                .flatMap(validator::validateUserLoanApplicationToken)
                 .map(loanApplicationDTOMapper::toLoanApplication)
                 .flatMap(loanApplicationUseCase::saveLoanApplication)
                 .map(loanApplicationDTOMapper::toLoanApplicationDTO)
@@ -39,6 +43,43 @@ public class LoanApplicationHandler {
                 .doOnError(e -> log.error("Error creating new LoanApplication", e))
                 .doOnSuccess(resp -> log.info("LoanApplication created successfully"));
     }
+
+
+
+    @PreAuthorize("hasRole('ADMIN') or hasRole('ADVISOR')")
+    public Mono<ServerResponse> listenGetLoanApplicationsReport(ServerRequest serverRequest) {
+        log.info("Received request to create report LoanApplication");
+
+        Integer id = serverRequest.queryParam("id").map(Integer::valueOf).orElse(null);
+        String document = serverRequest.queryParam("document").orElse(null);
+        Integer term = serverRequest.queryParam("term").map(Integer::valueOf).orElse(null);
+        String loanType = serverRequest.queryParam("loanType").orElse(null);
+        String state = serverRequest.queryParam("state").orElse(null);
+
+        Integer page = Integer.parseInt(serverRequest.queryParam("page").orElse("0"));
+        Integer size = Integer.parseInt(serverRequest.queryParam("size").orElse("10"));
+
+
+
+        return  loanApplicationUseCase.getLoanApplicationReport(id, document, term, loanType, state, page, size)
+                .map(loanApplicationDTOMapper::toLoanUserReportDTO)
+                .flatMap(loanApplicationsList ->
+                     ServerResponse.ok()
+                             .contentType(MediaType.APPLICATION_JSON)
+                             .bodyValue(loanApplicationsList)
+                )
+                .doOnError(e -> log.error("Error fetching loanApplications", e))
+                .doOnSuccess(resp -> log.info("Successfully returned all loanApplications"));
+    }
+
+
+
+
+
+
+
+
+
 
     public Mono<ServerResponse> listenUpdateLoanApplication(ServerRequest serverRequest) {
         Mono<UpdateLoanApplicationDTO> loanApplicationMono = serverRequest.bodyToMono(UpdateLoanApplicationDTO.class);
@@ -54,7 +95,7 @@ public class LoanApplicationHandler {
     }
 
     public Mono<ServerResponse> listenGetAllLoanApplications(ServerRequest serverRequest) {
-        log.info("Received request to get all loanApplications");
+        log.info("Received request [{}] to get all loanApplications", serverRequest.path());
         return  loanApplicationUseCase.getAllLoanApplications()
                 .map(loanApplicationDTOMapper::toLoanApplicationDTO)
                 .collectList()

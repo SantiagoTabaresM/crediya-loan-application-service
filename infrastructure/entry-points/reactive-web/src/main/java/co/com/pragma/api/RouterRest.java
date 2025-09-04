@@ -18,7 +18,6 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.reactive.function.server.RouterFunction;
-import org.springframework.web.reactive.function.server.RouterFunctions;
 import org.springframework.web.reactive.function.server.ServerResponse;
 
 import static org.springframework.web.reactive.function.server.RequestPredicates.*;
@@ -33,13 +32,15 @@ public class RouterRest {
     private final LoanApplicationPath loanApplicationPath;
     private final LoanApplicationHandler loanApplicationHandler;
 
-    private static final String USERS = "/api/v1/loan-application";
-    private static final String USERS_BY_ID =  "/api/v1/loan-application/{id}";
+    private static final String LOAN_APPLICATION = "/api/v1/loan-application";
+    private static final String LOAN_APPLICATION_ID =  "/api/v1/loan-application/{id}";
+
+    private static final String LOAN_APPLICATION_REPORT = "/api/v1/loan-application-report";
 
     @Bean
     @RouterOperations({
             @RouterOperation(
-                    path = USERS,
+                    path = LOAN_APPLICATION,
                     method = {RequestMethod.POST},
                     beanClass = LoanApplicationHandler.class,
                     beanMethod = "listenSaveLoanApplication",
@@ -59,7 +60,7 @@ public class RouterRest {
                     )
             ),
             @RouterOperation(
-                    path = USERS_BY_ID,
+                    path = LOAN_APPLICATION_ID,
                     method = {RequestMethod.GET},
                     beanClass = LoanApplicationHandler.class,
                     beanMethod = "listenGetLoanApplicationById",
@@ -77,7 +78,7 @@ public class RouterRest {
                     )
             ),
             @RouterOperation(
-                    path = USERS,
+                    path = LOAN_APPLICATION,
                     method = {RequestMethod.PUT},
                     beanClass = LoanApplicationHandler.class,
                     beanMethod = "listenUpdateLoanApplication",
@@ -97,7 +98,7 @@ public class RouterRest {
                     )
             ),
             @RouterOperation(
-                    path = USERS,
+                    path = LOAN_APPLICATION,
                     method = {RequestMethod.GET},
                     beanClass = LoanApplicationHandler.class,
                     beanMethod = "listenGetAllLoanApplications",
@@ -111,7 +112,7 @@ public class RouterRest {
                     )
             ),
             @RouterOperation(
-                    path = USERS_BY_ID,
+                    path = LOAN_APPLICATION_ID,
                     method = {RequestMethod.DELETE},
                     beanClass = LoanApplicationHandler.class,
                     beanMethod = "listenDeleteLoanApplication",
@@ -126,6 +127,29 @@ public class RouterRest {
                                     @ApiResponse(responseCode = "404", description = "LoanApplication not found")
                             }
                     )
+            ),
+            @RouterOperation(
+                    path = LOAN_APPLICATION_REPORT,
+                    method = {RequestMethod.GET},
+                    beanClass = LoanApplicationHandler.class,
+                    beanMethod = "listenGetLoanApplicationsReport",
+                    operation = @Operation(
+                            operationId = "getLoanApplicationsReport",
+                            summary = "Get loanApplications report",
+                            parameters = {
+                                    @Parameter(name = "id", in = ParameterIn.PATH, description = "Application ID", required = true, schema = @Schema(type = "integer")),
+                                    @Parameter(name = "document", in = ParameterIn.QUERY, description = "Applicant document", schema = @Schema(type = "string")),
+                                    @Parameter(name = "term", in = ParameterIn.QUERY, description = "Loan term in months", schema = @Schema(type = "integer")),
+                                    @Parameter(name = "loanType", in = ParameterIn.QUERY, description = "Loan type", schema = @Schema(type = "string")),
+                                    @Parameter(name = "state", in = ParameterIn.QUERY, description = "Loan state", schema = @Schema(type = "string")),
+                                    @Parameter(name = "page", in = ParameterIn.QUERY, description = "Page number", schema = @Schema(type = "integer", defaultValue = "0")),
+                                    @Parameter(name = "size", in = ParameterIn.QUERY, description = "Page size", schema = @Schema(type = "integer", defaultValue = "10"))
+                            },
+                            responses = {
+                                    @ApiResponse(responseCode = "200", description = "LoanApplications report generated successfully",
+                                            content = @Content(schema = @Schema(implementation = String.class)))
+                            }
+                    )
             )
     })
     public RouterFunction<ServerResponse> routerFunction(LoanApplicationHandler routeLoanApplication ) {
@@ -133,6 +157,7 @@ public class RouterRest {
                 .andRoute(PUT(loanApplicationPath.getLoanApplications()), loanApplicationHandler::listenUpdateLoanApplication)
                 .andRoute(DELETE(loanApplicationPath.getLoanApplicationsById()), loanApplicationHandler::listenDeleteLoanApplication)
                 .andRoute(GET(loanApplicationPath.getLoanApplications()), loanApplicationHandler::listenGetAllLoanApplications)
-                .andRoute(GET(loanApplicationPath.getLoanApplicationsById()), loanApplicationHandler::listenGetLoanApplicationById);
+                .andRoute(GET(loanApplicationPath.getLoanApplicationsById()), loanApplicationHandler::listenGetLoanApplicationById)
+                .andRoute(GET(LOAN_APPLICATION_REPORT), loanApplicationHandler::listenGetLoanApplicationsReport);
     }
 }

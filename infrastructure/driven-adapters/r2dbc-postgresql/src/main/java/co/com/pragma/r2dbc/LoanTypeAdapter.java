@@ -1,7 +1,6 @@
 package co.com.pragma.r2dbc;
 
 
-
 import co.com.pragma.model.loantype.LoanType;
 import co.com.pragma.model.loantype.gateways.LoanTypeRepository;
 import co.com.pragma.r2dbc.entity.LoanTypeEntity;
@@ -42,6 +41,8 @@ public class LoanTypeAdapter extends ReactiveAdapterOperations<
     public Mono<Boolean> existsById(Integer id) {
         return repository.existsById(id);
     }
+
+
 
 
 }

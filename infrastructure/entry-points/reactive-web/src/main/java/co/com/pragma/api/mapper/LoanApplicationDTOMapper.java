@@ -2,8 +2,10 @@ package co.com.pragma.api.mapper;
 
 import co.com.pragma.api.dto.CreateLoanApplicationDTO;
 import co.com.pragma.api.dto.LoanApplicationDTO;
+import co.com.pragma.api.dto.LoanUserReportDTO;
 import co.com.pragma.api.dto.UpdateLoanApplicationDTO;
 import co.com.pragma.model.loanapplication.LoanApplication;
+import co.com.pragma.model.loanapplication.LoanUserReport;
 import org.mapstruct.Mapper;
 
 @Mapper(componentModel = "spring")
@@ -18,5 +20,6 @@ public interface  LoanApplicationDTOMapper {
     UpdateLoanApplicationDTO toUpdateLoanApplicationDTO(LoanApplication loanApplication);
 
     LoanApplication updateLoanApplicationDTOtoLoanApplication(UpdateLoanApplicationDTO updateLoanApplicationDTO);
-    
+
+    LoanUserReportDTO toLoanUserReportDTO(LoanUserReport loanApplication);
 }
