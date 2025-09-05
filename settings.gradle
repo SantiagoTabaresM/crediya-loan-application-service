@@ -28,3 +28,7 @@ include':webclient-authentication-service'
 project (':webclient-authentication-service').projectDir = file('./infrastructure/driven-adapters/webclient-authentication-service')
 include ':logger-slf4j'
 project(':logger-slf4j').projectDir = file('./infrastructure/driven-adapters/logger-slf4j')
+include ':metrics'
+project(':metrics').projectDir = file('./infrastructure/helpers/metrics')
+include ':sqs-sender'
+project(':sqs-sender').projectDir = file('./infrastructure/driven-adapters/sqs-sender')

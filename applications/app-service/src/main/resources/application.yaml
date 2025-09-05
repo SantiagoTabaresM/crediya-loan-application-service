@@ -18,7 +18,7 @@ spring:
           issuer-uri: "https://idp.example.com/issuer"
           client-id: "myclientid"
 jwt:
-  secret-key: my-super-secret-key-1234567890123456
+  secret-key: "my-super-secret-key-1234567890123456"
   json-exp-roles: "role"
 management:
   endpoints:
@@ -35,7 +35,6 @@ routes:
   paths:
     loanApplications: "/api/v1/loan-application"
     loanApplicationsById: "/api/v1/loan-application/{id}"
-
 adapters:
   r2dbc:
     host: "db.zpedtzxkdhkuvvpxbkdg.supabase.co"
@@ -44,16 +43,18 @@ adapters:
     schema: "public"
     username: "postgres"
     password: "authentication123"
-
 springdoc:
   api-docs:
-    path: /v3/api-docs
+    path: "/v3/api-docs"
   swagger-ui:
-    path: /swagger-ui.html
+    path: "/swagger-ui.html"
 adapter:
   restconsumer:
     timeout: 5000
     url: "http://localhost:8080"
+  sqs:
+    region: "us-east-1"
+    queueUrl: "https://sqs.us-east-1.amazonaws.com/198413840757/Notification_SQS"
 resilience4j:
   circuitbreaker:
     instances:
