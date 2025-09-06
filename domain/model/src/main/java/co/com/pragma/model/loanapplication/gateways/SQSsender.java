@@ -4,5 +4,7 @@ import reactor.core.publisher.Mono;
 
 public interface SQSsender {
 
-    Mono<String> send(String message);
+    Mono<String> sendNotification(String message);
+
+    Mono<String> sendDebtCapacity(String message);
 }

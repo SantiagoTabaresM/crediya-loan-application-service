@@ -18,16 +18,32 @@ public class SQSSenderAdapter implements SQSsender {
     private final SQSSenderProperties properties;
     private final SqsAsyncClient client;
 
-    public Mono<String> send(String message) {
-        return Mono.fromCallable(() -> buildRequest(message))
+
+    @Override
+    public Mono<String> sendNotification(String message) {
+        return sendMessage(message, properties.notificationQueueUrl());
+    }
+
+
+    @Override
+    public Mono<String> sendDebtCapacity(String message) {
+        return sendMessage(message, properties.debtCapacityQueueUrl());
+    }
+
+
+
+
+    private Mono<String> sendMessage(String message, String queueUrl) {
+        return Mono.fromCallable(() -> buildRequest(message, queueUrl))
                 .flatMap(request -> Mono.fromFuture(client.sendMessage(request)))
-                .doOnNext(response -> log.debug("Message sent {}", response.messageId()))
+                .doOnNext(response -> log.debug("Message sent to {} with id {}", queueUrl, response.messageId()))
                 .map(SendMessageResponse::messageId);
     }
 
-    private SendMessageRequest buildRequest(String message) {
+
+    private SendMessageRequest buildRequest(String message, String queueUrl) {
         return SendMessageRequest.builder()
-                .queueUrl(properties.queueUrl())
+                .queueUrl(queueUrl)
                 .messageBody(message)
                 .build();
     }

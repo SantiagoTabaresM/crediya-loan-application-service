@@ -54,7 +54,8 @@ adapter:
     url: "http://localhost:8080"
   sqs:
     region: "us-east-1"
-    queueUrl: "https://sqs.us-east-1.amazonaws.com/198413840757/Notification_SQS"
+    notificationQueueUrl: "https://sqs.us-east-1.amazonaws.com/198413840757/Notification_SQS"
+    debtCapacityQueueUrl: "https://sqs.us-east-1.amazonaws.com/198413840757/DebtCapacity_SQS"
 resilience4j:
   circuitbreaker:
     instances:

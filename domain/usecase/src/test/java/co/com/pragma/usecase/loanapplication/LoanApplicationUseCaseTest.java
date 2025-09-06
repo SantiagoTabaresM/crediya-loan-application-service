@@ -230,7 +230,7 @@ class LoanApplicationUseCaseTest {
             return ((Supplier<Mono<LoanApplication>>) invocation.getArgument(0)).get();
         });
         when(loanApplicationRepository.save(validLoanApplication)).thenReturn(Mono.just(validLoanApplication));
-        when(sqsSender.send(anyString())).thenReturn(Mono.just("msg-123"));
+        when(sqsSender.sendNotification(anyString())).thenReturn(Mono.just("msg-123"));
 
         StepVerifier.create(loanApplicationUseCase.updateLoanApplication(validLoanApplication))
                 .expectNext(validLoanApplication)
