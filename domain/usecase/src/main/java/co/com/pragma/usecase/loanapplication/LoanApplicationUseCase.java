@@ -49,7 +49,7 @@ public class LoanApplicationUseCase implements ILoanApplicationUseCase  {
 
     private final LoanApplicationWebClient loanApplicationWebClient;
 
-    private final SQSsender sqSsender;
+    private final SQSsender notificationEmail;
 
     private final Logger logger;
     private final TxOperational txOperational;
@@ -203,7 +203,7 @@ public class LoanApplicationUseCase implements ILoanApplicationUseCase  {
                     }
 
                     if (stateChanged) {
-                        return updateFlow.flatMap(this::sendSQS);
+                        return updateFlow.flatMap(this::sendEmail);
                     } else {
                         return updateFlow;
                     }
@@ -211,17 +211,17 @@ public class LoanApplicationUseCase implements ILoanApplicationUseCase  {
     }
 
 
-    private Mono<LoanApplication> sendSQS(LoanApplication loanApplication) {
+    private Mono<LoanApplication> sendEmail(LoanApplication loanApplication) {
         String message = String.format(
                 "{\"applicationId\":\"%s\", \"state\":\"%s\", \"email\":\"%s\"}",
                 loanApplication.getApplicationId(),
                 loanApplication.getStateId().toString(),
                 loanApplication.getEmail()
         );
-        logger.info("[sendSQS] Preparando envío de mensaje a SQS para solicitud " + loanApplication.getApplicationId());
-        sqSsender.send(message)
-                .doOnSuccess(messageId -> logger.info("SQS message sent with id: " + messageId))
-                .doOnError(error -> logger.error("Failed to send SQS message", error))
+        logger.info("[sendEmail] Preparate email notification to  " + loanApplication.getApplicationId());
+        notificationEmail.send(message)
+                .doOnSuccess(messageId -> logger.info("Message sent with id: " + messageId))
+                .doOnError(error -> logger.error("Failed to send  message", error))
         .subscribe();
         return Mono.just(loanApplication);
     }

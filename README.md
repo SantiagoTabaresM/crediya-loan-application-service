@@ -40,9 +40,8 @@ Para la base de datos se utiliza PostgreSQL en Supabase, y se gestiona a través
 # Notificaciones Aprobación/Rechazo
 El microservicio de solicitud de crédito se integra con cola en SQS para enviar notificaciones de aprobación o rechazo de solicitudes de crédito. Cuando una solicitud es procesada, el microservicio publica un mensaje en la cola SQS correspondiente, que luego puede ser consumido por otros servicios responsables de enviar las notificaciones a los usuarios finales al momento que el asesor actualiza el estado de su solicitud.
 
-Esta SQS se integra con una lambda que se encarga de enviar el correo electrónico al cliente notificándole sobre el estado de su solicitud de crédito mediante SNS.
+Esta SQS se integra con una lambda que se encarga de enviar el correo electrónico al cliente notificándole sobre el estado de su solicitud de crédito mediante SES.
 
 
 ![CrediYa](docs/SQS_Notification.png)
 ![CrediYa](docs/Lambda_Notification.png)
-![CrediYa](docs/SNS_Notification.png)

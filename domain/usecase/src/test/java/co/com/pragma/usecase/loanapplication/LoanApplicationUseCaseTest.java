@@ -207,7 +207,7 @@ class LoanApplicationUseCaseTest {
     }
 
     @Test
-    void updateLoanApplication_WithValidLoanApplication_ShouldUpdateSuccessfully_sendSQS() {
+    void updateLoanApplication_WithValidLoanApplication_ShouldUpdateSuccessfully_sendEmail() {
         LoanApplication validLoanApplication2 = LoanApplication.builder()
                 .applicationId(1)
                 .document("123456")
