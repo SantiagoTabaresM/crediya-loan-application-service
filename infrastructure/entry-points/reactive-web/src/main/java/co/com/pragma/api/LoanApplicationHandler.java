@@ -73,14 +73,7 @@ public class LoanApplicationHandler {
     }
 
 
-
-
-
-
-
-
-
-
+    @PreAuthorize("hasRole('ADMIN') or hasRole('ADVISOR')")
     public Mono<ServerResponse> listenUpdateLoanApplication(ServerRequest serverRequest) {
         Mono<UpdateLoanApplicationDTO> loanApplicationMono = serverRequest.bodyToMono(UpdateLoanApplicationDTO.class);
         return loanApplicationMono

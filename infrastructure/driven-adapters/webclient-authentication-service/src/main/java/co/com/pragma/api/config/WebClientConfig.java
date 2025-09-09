@@ -44,9 +44,9 @@ public class WebClientConfig {
                                 .map(SecurityContext::getAuthentication)
                                 .map(auth -> {
                                     String tokenValue;
-                                    if (auth instanceof JwtAuthenticationToken) {
-                                        Jwt jwt = ((JwtAuthenticationToken) auth).getToken();
-                                        tokenValue = jwt.getTokenValue(); // <-- aquí obtienes el string del JWT
+                                    if (auth instanceof JwtAuthenticationToken jwtAuth) {
+                                        Jwt jwt = jwtAuth.getToken();
+                                        tokenValue = jwt.getTokenValue(); // <-- se obtiene el string del JWT
                                     } else {
                                         tokenValue = auth.getCredentials().toString(); // fallback
                                     }

@@ -2,7 +2,6 @@ package co.com.pragma.api;
 
 import co.com.pragma.model.loanapplication.UserInfo;
 import co.com.pragma.model.loanapplication.gateways.LoanApplicationWebClient;
-import org.springframework.http.HttpHeaders;
 import org.springframework.stereotype.Repository;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Flux;
@@ -22,7 +21,6 @@ public class AuthenticationWebClientAdapter implements LoanApplicationWebClient 
     public Mono<Boolean> checkUserExists(String document, String email) {
         return webClient.get()
                 .uri(USERS_EXISTS, document, email ) // endpoint del microservicio de autenticación
-               // .header(HttpHeaders.AUTHORIZATION, "Bearer " + jwt)
                 .retrieve()
                 .bodyToMono(Boolean.class);
     }
@@ -30,7 +28,6 @@ public class AuthenticationWebClientAdapter implements LoanApplicationWebClient 
     public Flux<UserInfo> getUsersByDocuments(String[] documents) {
         return webClient.post()
                 .uri(USERS_DOCUMENT) // endpoint del microservicio de autenticación
-               // .header(HttpHeaders.AUTHORIZATION, "Bearer " + jwt)
                 .bodyValue(documents)
                 .retrieve()
                 .bodyToFlux(UserInfo.class);

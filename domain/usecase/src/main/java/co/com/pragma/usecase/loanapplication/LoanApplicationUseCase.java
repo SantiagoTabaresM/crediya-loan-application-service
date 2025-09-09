@@ -3,6 +3,8 @@ package co.com.pragma.usecase.loanapplication;
 import co.com.pragma.model.loanapplication.*;
 import co.com.pragma.model.loanapplication.gateways.LoanApplicationRepository;
 import co.com.pragma.model.loanapplication.gateways.LoanApplicationWebClient;
+import co.com.pragma.model.loanapplication.gateways.SQSsender;
+import co.com.pragma.model.loanstate.gateways.LoanStateRepository;
 import co.com.pragma.model.loantype.gateways.LoanTypeRepository;
 import co.com.pragma.model.utils.gateways.Logger;
 import co.com.pragma.model.utils.gateways.TxOperational;
@@ -27,6 +29,7 @@ public class LoanApplicationUseCase implements ILoanApplicationUseCase  {
     private static final String FIELD_TERM_MONTHS = "term_months";
     private static final String FIELD_DOCUMENT = "document";
     private static final String FIELD_LOAN_TYPE_ID = "loan_type_id";
+    private static final String FIELD_LOAN_STATE_ID = "loan_state_id";
     private static final String FIELD_USER = "user";
 
     private static final String ERROR_VALIDATION = "Validation error";
@@ -42,8 +45,11 @@ public class LoanApplicationUseCase implements ILoanApplicationUseCase  {
 
     private final LoanApplicationRepository loanApplicationRepository;
     private final LoanTypeRepository loanTypeRepository;
+    private final LoanStateRepository loanStateRepository;
+
     private final LoanApplicationWebClient loanApplicationWebClient;
 
+    private final SQSsender notificationEmail;
 
     private final Logger logger;
     private final TxOperational txOperational;
@@ -130,6 +136,108 @@ public class LoanApplicationUseCase implements ILoanApplicationUseCase  {
                         logger.info("Loan application saved successfully with id:" +  saved.getApplicationId())
                 );
     }
+
+
+    /**
+     * Actualiza una solicitud de préstamo en el repositorio.
+     *
+     * Este método realiza las siguientes validaciones antes de actualizar la solicitud:
+     * 1. Valida los campos de la solicitud de préstamo utilizando `validateUpdateloanApplication`.
+     * 2. Verifica que el tipo de préstamo exista en el repositorio.
+     * 3. Comprueba que el usuario asociado a la solicitud exista en el microservicio de usuarios con documento e email si es que hubo cambios en estos campos.
+     *
+     * Si todas las validaciones son exitosas, la solicitud se actualiza en el repositorio.
+     *
+     * @param loanApplication La solicitud de préstamo que se desea actualizar.
+     * @return Un `Mono<LoanApplication>` que emite la solicitud de préstamo actualizada si todas las validaciones son exitosas.
+     */
+    public Mono<LoanApplication> updateLoanApplication(LoanApplication loanApplication) {
+        logger.info("[updateLoanApplication] Iniciando actualización de solicitud con ID: "
+                + loanApplication.getApplicationId() + " y documento: " + loanApplication.getDocument());
+
+        return txOperational.execute(() -> {
+            logger.info("Attempting to save loan application for document: " + loanApplication.getDocument());
+            return validate(loanApplication, this::validateUpdateloanApplication)
+                    .flatMap(this::validateLoanType)
+                    .flatMap(this::validateLoanState)
+                    .flatMap(this::validateUserAndUpdate);
+
+        });
+    }
+
+    /**
+     * Valida que el tipo de préstamo exista.
+     */
+    private Mono<LoanApplication> validateLoanState(LoanApplication loanApplication) {
+        logger.info("[validateLoanState] Validando estado de préstamo");
+        return loanStateRepository.existsById(loanApplication.getLoanTypeId())
+                .flatMap(exists -> {
+                    if (Boolean.FALSE.equals(exists)) {
+                        return Mono.error(new BussinesException(
+                                ERROR_VALIDATION,
+                                buildError(FIELD_LOAN_STATE_ID,
+                                        "Loan state ID " + loanApplication.getLoanTypeId() + " " + ERROR_DONT_EXIST)
+                        ));
+                    }
+                    return Mono.just(loanApplication);
+                });
+    }
+
+
+    private Mono<LoanApplication> validateUserAndUpdate(LoanApplication loanApplication) {
+        logger.info("[validateUserAndUpdate] Validando cambios para solicitud con ID: ");
+        return loanApplicationRepository.findById(loanApplication.getApplicationId())
+                .flatMap(existing -> {
+                    boolean sameUser = existing.getDocument().equals(loanApplication.getDocument()) &&
+                            existing.getEmail().equals(loanApplication.getEmail());
+
+                    boolean stateChanged  = !existing.getStateId().equals(loanApplication.getStateId());
+
+                    Mono<LoanApplication> updateFlow;
+
+                    if (sameUser) {
+                        updateFlow = updateLoanApplicationRepository(loanApplication);
+                    } else {
+                        updateFlow = validateUserExist(loanApplication)
+                                .flatMap(this::updateLoanApplicationRepository);
+                    }
+
+                    if (stateChanged) {
+                        return updateFlow.flatMap(this::sendEmail);
+                    } else {
+                        return updateFlow;
+                    }
+                });
+    }
+
+
+    private Mono<LoanApplication> sendEmail(LoanApplication loanApplication) {
+        String message = String.format(
+                "{\"applicationId\":\"%s\", \"state\":\"%s\", \"email\":\"%s\"}",
+                loanApplication.getApplicationId(),
+                loanApplication.getStateId().toString(),
+                loanApplication.getEmail()
+        );
+        logger.info("[sendEmail] Preparate email notification to  " + loanApplication.getApplicationId());
+        notificationEmail.send(message)
+                .doOnSuccess(messageId -> logger.info("Message sent with id: " + messageId))
+                .doOnError(error -> logger.error("Failed to send  message", error))
+        .subscribe();
+        return Mono.just(loanApplication);
+    }
+
+
+    /**
+     * Actualiza la solicitud y loguea el resultado.
+     */
+    private Mono<LoanApplication> updateLoanApplicationRepository(LoanApplication application) {
+        return loanApplicationRepository.save(application)
+                .doOnSuccess(saved -> logger.info("Loan application updated with id: "+ saved.getApplicationId()));
+    }
+
+
+
+
 
 
     /**
@@ -244,61 +352,6 @@ public class LoanApplicationUseCase implements ILoanApplicationUseCase  {
     // Redondea un valor a tres decimales
     private double roundToThreeDecimals(double value) {
         return Math.round(value * 1000.0) / 1000.0;
-    }
-
-
-
-
-    /**
-     * Actualiza una solicitud de préstamo en el repositorio.
-     *
-     * Este método realiza las siguientes validaciones antes de actualizar la solicitud:
-     * 1. Valida los campos de la solicitud de préstamo utilizando `validateUpdateloanApplication`.
-     * 2. Verifica que el tipo de préstamo exista en el repositorio.
-     * 3. Comprueba que el usuario asociado a la solicitud exista en el microservicio de usuarios con documento e email si es que hubo cambios en estos campos.
-     *
-     * Si todas las validaciones son exitosas, la solicitud se actualiza en el repositorio.
-     *
-     * @param loanApplication La solicitud de préstamo que se desea actualizar.
-     * @return Un `Mono<LoanApplication>` que emite la solicitud de préstamo actualizada si todas las validaciones son exitosas.
-     */
-    public Mono<LoanApplication> updateLoanApplication(LoanApplication loanApplication) {
-        return txOperational.execute(() -> {
-            logger.info("Attempting to save loan application for document: " + loanApplication.getDocument());
-            return validate(loanApplication, this::validateUpdateloanApplication)
-                    .flatMap(this::validateLoanType)
-                    .flatMap(this::validateUserAndUpdate);
-        });
-    }
-
-    private Mono<LoanApplication> validateUserAndUpdate(LoanApplication loanApplication) {
-        return loanApplicationRepository.findById(loanApplication.getApplicationId())
-                .flatMap(existing -> {
-                    boolean sameUser = existing.getDocument().equals(loanApplication.getDocument()) &&
-                            existing.getEmail().equals(loanApplication.getEmail());
-
-                    if (sameUser) {
-                        // no cambio de usuario/email → solo actualiza
-                        return loanApplicationRepository.save(loanApplication)
-                                .doOnSuccess(saved -> logger.info("Loan application updated with id:" + saved.getApplicationId()));
-                    }
-
-                    // si cambió usuario/email → validamos en el micro
-                    return loanApplicationWebClient.checkUserExists(loanApplication.getDocument(), loanApplication.getEmail())
-                            .flatMap(userExists -> {
-                                if (Boolean.FALSE.equals(userExists)) {
-                                    return Mono.error(new BussinesException(
-                                            ERROR_VALIDATION,
-                                            buildError(FIELD_USER,
-                                                    "User with document " + loanApplication.getDocument() +
-                                                            " and email " + loanApplication.getEmail() + " " + ERROR_DONT_EXIST)
-                                    ));
-                                }
-
-                                return loanApplicationRepository.save(loanApplication)
-                                        .doOnSuccess(saved -> logger.info("Loan application updated with id:" +  saved.getApplicationId()));
-                            });
-                });
     }
 
 

@@ -1,4 +1,4 @@
-![CrediYa](CrediYa_logo.png)
+![CrediYa](docs/CrediYa_logo.png)
 
 
 # CrediYa - crediya-loan-application-service
@@ -35,4 +35,13 @@ Este módulo es el más externo de la arquitectura, es el encargado de ensamblar
 # Base de datos
 
 Para la base de datos se utiliza PostgreSQL en Supabase, y se gestiona a través de R2DBC para mantener el enfoque reactivo en todas las capas del microservicio. La configuración de la conexión a la base de datos se encuentra en el archivo `application.yml`, donde se especifican los detalles necesarios para establecer la conexión.
-![CrediYa](BD_loan-application-service.png)
+![CrediYa](docs/BD_loan-application-service.png)
+
+# Notificaciones Aprobación/Rechazo
+El microservicio de solicitud de crédito se integra con cola en SQS para enviar notificaciones de aprobación o rechazo de solicitudes de crédito. Cuando una solicitud es procesada, el microservicio publica un mensaje en la cola SQS correspondiente, que luego puede ser consumido por otros servicios responsables de enviar las notificaciones a los usuarios finales al momento que el asesor actualiza el estado de su solicitud.
+
+Esta SQS se integra con una lambda que se encarga de enviar el correo electrónico al cliente notificándole sobre el estado de su solicitud de crédito mediante SES.
+
+
+![CrediYa](docs/SQS_Notification.png)
+![CrediYa](docs/Lambda_Notification.png)

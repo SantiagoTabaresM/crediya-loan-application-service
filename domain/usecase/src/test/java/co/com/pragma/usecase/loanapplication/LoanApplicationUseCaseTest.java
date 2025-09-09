@@ -4,6 +4,8 @@ package co.com.pragma.usecase.loanapplication;
 import co.com.pragma.model.loanapplication.*;
 import co.com.pragma.model.loanapplication.gateways.LoanApplicationRepository;
 import co.com.pragma.model.loanapplication.gateways.LoanApplicationWebClient;
+import co.com.pragma.model.loanapplication.gateways.SQSsender;
+import co.com.pragma.model.loanstate.gateways.LoanStateRepository;
 import co.com.pragma.model.loantype.gateways.LoanTypeRepository;
 import co.com.pragma.model.utils.gateways.Logger;
 import co.com.pragma.model.utils.gateways.TxOperational;
@@ -33,6 +35,7 @@ class LoanApplicationUseCaseTest {
     private static final String FIELD_TERM_MONTHS = "term_months";
     private static final String FIELD_DOCUMENT = "document";
     private static final String FIELD_LOAN_TYPE_ID = "loan_type_id";
+    private static final String FIELD_LOAN_STATE_ID = "loan_state_id";
     private static final String FIELD_USER = "user";
 
     @Mock
@@ -42,9 +45,13 @@ class LoanApplicationUseCaseTest {
     @Mock
     private LoanApplicationWebClient loanApplicationWebClient;
     @Mock
+    private LoanStateRepository loanStateRepository;
+    @Mock
     private Logger logger;
     @Mock
     private TxOperational txOperational;
+    @Mock
+    private SQSsender sqsSender;
 
 
     @InjectMocks
@@ -186,13 +193,44 @@ class LoanApplicationUseCaseTest {
         when(loanTypeRepository.existsById(validLoanApplication.getLoanTypeId())).thenReturn(Mono.just(true));
 
         when(loanApplicationRepository.findById(anyInt())).thenReturn(Mono.just(validLoanApplication));
-
+        when(loanStateRepository.existsById(anyInt())).thenReturn(Mono.just(true));
 
         when(txOperational.execute(any())).thenAnswer(invocation -> {
             // Ejecuta el supplier pasado
             return ((Supplier<Mono<LoanApplication>>) invocation.getArgument(0)).get();
         });
         when(loanApplicationRepository.save(validLoanApplication)).thenReturn(Mono.just(validLoanApplication));
+
+        StepVerifier.create(loanApplicationUseCase.updateLoanApplication(validLoanApplication))
+                .expectNext(validLoanApplication)
+                .verifyComplete();
+    }
+
+    @Test
+    void updateLoanApplication_WithValidLoanApplication_ShouldUpdateSuccessfully_sendEmail() {
+        LoanApplication validLoanApplication2 = LoanApplication.builder()
+                .applicationId(1)
+                .document("123456")
+                .email("test@gmail.com")
+                .amount(5000.0)
+                .termMonths(12)
+                .loanTypeId(1)
+                .stateId(2)
+                .build();
+
+
+
+        when(loanTypeRepository.existsById(validLoanApplication.getLoanTypeId())).thenReturn(Mono.just(true));
+
+        when(loanApplicationRepository.findById(anyInt())).thenReturn(Mono.just(validLoanApplication2));
+        when(loanStateRepository.existsById(anyInt())).thenReturn(Mono.just(true));
+
+        when(txOperational.execute(any())).thenAnswer(invocation -> {
+            // Ejecuta el supplier pasado
+            return ((Supplier<Mono<LoanApplication>>) invocation.getArgument(0)).get();
+        });
+        when(loanApplicationRepository.save(validLoanApplication)).thenReturn(Mono.just(validLoanApplication));
+        when(sqsSender.send(anyString())).thenReturn(Mono.just("msg-123"));
 
         StepVerifier.create(loanApplicationUseCase.updateLoanApplication(validLoanApplication))
                 .expectNext(validLoanApplication)
@@ -230,9 +268,41 @@ class LoanApplicationUseCaseTest {
     }
 
     @Test
+    void updateLoanApplication_shouldThrowBussinesException_whenLoadStateNotExists() {
+
+        when(loanTypeRepository.existsById(validLoanApplication.getLoanTypeId())).thenReturn(Mono.just(true));
+        when(loanStateRepository.existsById(anyInt())).thenReturn(Mono.just(false));
+        when(txOperational.execute(any())).thenAnswer(invocation -> {
+            // Ejecuta el supplier pasado
+            return ((Supplier<Mono<LoanApplication>>) invocation.getArgument(0)).get();
+        });
+
+        // Act
+        Mono<LoanApplication> result = loanApplicationUseCase.updateLoanApplication(validLoanApplication);
+
+        // Assert
+        StepVerifier.create(result)
+                .expectErrorSatisfies(error -> {
+                    assert error instanceof BussinesException;
+                    BussinesException ex = (BussinesException) error;
+
+                    // Validar mensaje de error
+                    Map<String, Object> details = ex.getErrorDetails();
+                    assert details.get("type").equals("VALIDATION_ERROR");
+                    assert ((Map<?, ?>) details.get("fieldErrors")).containsKey(FIELD_LOAN_STATE_ID);
+                })
+                .verify();
+
+        // Verify
+        verify(loanStateRepository, times(1)).existsById(validLoanApplication.getStateId());
+        verify(loanApplicationRepository, never()).save(Mockito.any(LoanApplication.class));
+    }
+
+    @Test
     void updateLoanApplication_shouldThrowBussinesException_whenUserNotExists() {
 
         when(loanTypeRepository.existsById(validLoanApplication.getLoanTypeId())).thenReturn(Mono.just(true));
+        when(loanStateRepository.existsById(anyInt())).thenReturn(Mono.just(true));
         when(loanApplicationWebClient.checkUserExists(validLoanApplication.getDocument(), validLoanApplication.getEmail()))
                 .thenReturn(Mono.just(false));
         LoanApplication validLoanApplication2 = LoanApplication.builder()
@@ -272,6 +342,7 @@ class LoanApplicationUseCaseTest {
         verify(loanApplicationWebClient, times(1)).checkUserExists(validLoanApplication.getDocument(), validLoanApplication.getEmail());
         verify(loanApplicationRepository, never()).save(Mockito.any(LoanApplication.class));
     }
+
 
 
 
