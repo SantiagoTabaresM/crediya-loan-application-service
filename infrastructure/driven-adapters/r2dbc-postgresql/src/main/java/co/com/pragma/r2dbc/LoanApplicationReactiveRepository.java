@@ -1,6 +1,7 @@
 package co.com.pragma.r2dbc;
 
 
+import co.com.pragma.r2dbc.entity.LoanBasicInfoEntity;
 import co.com.pragma.r2dbc.entity.LoanApplicationEntity;
 import co.com.pragma.r2dbc.entity.LoanApplicationReportEntity;
 import org.springframework.data.r2dbc.repository.Query;
@@ -39,5 +40,19 @@ public interface LoanApplicationReactiveRepository extends ReactiveCrudRepositor
                                                                  @Param("state") String state,
                                                                  @Param("page") Integer page,
                                                                  @Param("pageSize") Integer pageSize);
+
+
+    @Query("""
+          SELECT la.application_id ,
+                 la.amount,
+                 la.term_months ,
+                 lt.interest_rate
+         FROM loan_applications la
+         INNER JOIN loan_types lt ON la.loan_type_id = lt.loan_type_id
+         WHERE  la.state_id = 3
+            AND (:document IS NULL OR la.document = :document)
+    """)
+    Flux<LoanBasicInfoEntity> findApprovedLoanApplicationsByDocument(@Param("document") String document);
+
 
 }

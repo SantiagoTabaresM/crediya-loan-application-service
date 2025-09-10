@@ -24,12 +24,10 @@ public class SQSSenderAdapter implements SQSsender {
         return sendMessage(message, properties.notificationQueueUrl());
     }
 
-
     @Override
-    public Mono<String> sendDebtCapacity(String message) {
-        return sendMessage(message, properties.debtCapacityQueueUrl());
+    public Mono<String> automaticReview(String message) {
+       return sendMessage(message, properties.debtCapacityQueueUrl());
     }
-
 
 
 

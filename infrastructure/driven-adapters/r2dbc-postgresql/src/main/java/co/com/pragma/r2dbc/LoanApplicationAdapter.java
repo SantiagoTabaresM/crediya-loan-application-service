@@ -1,6 +1,7 @@
 package co.com.pragma.r2dbc;
 
 import co.com.pragma.model.loanapplication.LoanApplication;
+import co.com.pragma.model.loanapplication.LoanBasicInfo;
 import co.com.pragma.model.loanapplication.LoanInfo;
 import co.com.pragma.model.loanapplication.gateways.LoanApplicationRepository;
 import co.com.pragma.r2dbc.entity.LoanApplicationEntity;
@@ -76,4 +77,17 @@ public class LoanApplicationAdapter extends ReactiveAdapterOperations<
                         .loanState(entity.getLoanState())
                         .build());
     }
+
+    @Override
+    public Flux<LoanBasicInfo> getApprovedLoansByDocument(String document) {
+        return repository.findApprovedLoanApplicationsByDocument(document)
+                .map(entity -> LoanBasicInfo.builder()
+                        .applicationId(entity.getApplicationId())
+                        .amount(entity.getAmount())
+                        .termMonths(entity.getTermMonths())
+                        .interestRate(entity.getInterestRate() != null ? entity.getInterestRate().toString() : null)
+                        .build());
+    }
+
+
 }

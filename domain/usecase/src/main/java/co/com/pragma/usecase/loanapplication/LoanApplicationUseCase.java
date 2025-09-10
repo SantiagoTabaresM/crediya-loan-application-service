@@ -309,6 +309,13 @@ public class LoanApplicationUseCase implements ILoanApplicationUseCase  {
                 ));
     }
 
+    @Override
+    public Flux<LoanBasicInfo> getApprovedLoanInfoByUserDocument(String document) {
+        logger.info("Fetching loan application by id: " + document);
+        return loanApplicationRepository.getApprovedLoansByDocument(document)
+                .doOnComplete(() -> logger.info("Finished fetching approved  loan applications"));
+    }
+
     // Construye el informe combinando la información de préstamos y usuarios.
     private LoanUserReport buildLoanUserReport(List<LoanInfo> loans, List<UserInfo> users) {
         List<LoanUserInfo> loanUserInfos = loans.stream()
