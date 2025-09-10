@@ -6,5 +6,5 @@ public interface SQSsender {
 
     Mono<String> sendNotification(String message);
 
-    Mono<String> sendDebtCapacity(String message);
+    Mono<String> automaticReview(String message);
 }

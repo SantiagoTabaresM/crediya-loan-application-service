@@ -115,6 +115,23 @@ public class LoanApplicationHandler {
                 .doOnSuccess(resp -> log.info("LoanApplication finding successfully"));
     }
 
+    @PreAuthorize("hasRole('ADMIN') or hasRole('ADVISOR')")
+    public Mono<ServerResponse> listenGetApprovedLoansByDocument(ServerRequest serverRequest) {
+        log.info("Received parameter to find approved loanApplication by id");
+        String  document = serverRequest.pathVariable("document");
+        return loanApplicationUseCase.getApprovedLoanInfoByUserDocument(document)
+                .map(loanApplicationDTOMapper::toLoanBasicInfoDTO)
+                .collectList()
+                .flatMap(loanApplicationsList -> {
+                    log.info("Returning {} loanApplications", loanApplicationsList.size());
+                    return ServerResponse.ok()
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .bodyValue(loanApplicationsList);
+                })
+                .doOnError(e -> log.error("Error fetching approved loanApplications", e))
+                .doOnSuccess(resp -> log.info("Successfully returned approved loanApplications"));
+    }
+
 
     public Mono<ServerResponse> listenDeleteLoanApplication(ServerRequest serverRequest) {
         log.info("Received parameter to delete loanApplication by id");

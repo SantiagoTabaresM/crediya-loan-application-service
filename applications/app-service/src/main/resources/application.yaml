@@ -37,12 +37,12 @@ routes:
     loanApplicationsById: "/api/v1/loan-application/{id}"
 adapters:
   r2dbc:
-    host: "db.zpedtzxkdhkuvvpxbkdg.supabase.co"
-    port: 5432
-    database: "postgres"
+    host: "localhost"
+    port: 5434
+    database: "loan_db"
     schema: "public"
-    username: "postgres"
-    password: "authentication123"
+    username: "loan_user"
+    password: "loan_pass"
 springdoc:
   api-docs:
     path: "/v3/api-docs"

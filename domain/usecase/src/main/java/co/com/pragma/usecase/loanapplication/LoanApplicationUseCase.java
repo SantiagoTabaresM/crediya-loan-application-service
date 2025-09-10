@@ -75,7 +75,8 @@ public class LoanApplicationUseCase implements ILoanApplicationUseCase  {
             return validate(loanApplication, this::validateCreateLoanApplication)
                     .flatMap(this::validateLoanType)
                     .flatMap(this::validateUserExist)
-                    .flatMap(this::saveLoanApplicationRepository);
+                    .flatMap(this::saveLoanApplicationRepository)
+                    .flatMap(this::validateAutomaticReview);
         });
     }
 
@@ -136,6 +137,33 @@ public class LoanApplicationUseCase implements ILoanApplicationUseCase  {
                         logger.info("Loan application saved successfully with id:" +  saved.getApplicationId())
                 );
     }
+
+
+
+    private Mono<LoanApplication> validateAutomaticReview(LoanApplication loanApplication) {
+        return loanTypeRepository.findById(loanApplication.getLoanTypeId())
+                .flatMap(exists -> {
+                    if (Boolean.TRUE.equals(exists.getAutomaticValidation())) {
+                        return  automaticReview(loanApplication);
+                    }
+                    return Mono.just(loanApplication);
+                });
+    }
+
+    private Mono<LoanApplication> automaticReview(LoanApplication loanApplication) {
+        String message = String.format(
+                "{\"applicationId\":\"%s\", \"document\":\"%s\"}",
+                loanApplication.getApplicationId(),
+                loanApplication.getDocument()
+        );
+        logger.info("[sendToAutomaticReview] Preparate to automatic review " + loanApplication.getApplicationId());
+        notificationEmail.automaticReview(message)
+                .doOnSuccess(messageId -> logger.info("Message sent with id: " + messageId))
+                .doOnError(error -> logger.error("Failed to send  message", error))
+                .subscribe();
+        return Mono.just(loanApplication);
+    }
+
 
 
     /**
@@ -219,7 +247,7 @@ public class LoanApplicationUseCase implements ILoanApplicationUseCase  {
                 loanApplication.getEmail()
         );
         logger.info("[sendEmail] Preparate email notification to  " + loanApplication.getApplicationId());
-        notificationEmail.send(message)
+        notificationEmail.sendNotification(message)
                 .doOnSuccess(messageId -> logger.info("Message sent with id: " + messageId))
                 .doOnError(error -> logger.error("Failed to send  message", error))
         .subscribe();
@@ -263,6 +291,7 @@ public class LoanApplicationUseCase implements ILoanApplicationUseCase  {
     @Override
     public Mono<LoanUserReport> getLoanApplicationReport(Integer id, String document, Integer term,
                                                          String loanType, String state, Integer page, Integer size) {
+        // Recupera las solicitudes de préstamo según los filtros proporcionados
         return loanApplicationRepository.getLoanApplicationsReport(id, document, term, loanType, state, page, size)
                 .collectList()
                 .flatMap(loans -> {
@@ -270,9 +299,10 @@ public class LoanApplicationUseCase implements ILoanApplicationUseCase  {
                             .map(LoanInfo::getDocument)
                             .toArray(String[]::new);
 
+                    // Recupera la información de los usuarios asociados a los documentos
                     return loanApplicationWebClient.getUsersByDocuments(documents)
                             .collectList()
-                            .map(users -> buildLoanUserReport(loans, users));
+                            .map(users -> buildLoanUserReport(loans, users)); // Construye el informe combinando la información de préstamos y usuarios
                 })
                 .doOnSuccess(report -> logger.info("Loan report generated with " + report.getLoanUserInfo().size() +
                                 " loans. Total approved installments: " + report.getTotalMonthlyInstallmentApproved()
@@ -301,6 +331,14 @@ public class LoanApplicationUseCase implements ILoanApplicationUseCase  {
                 .build();
     }
 
+    // Busca un usuario en la lista por su documento
+    private UserInfo findUserByDocument(List<UserInfo> users, String document) {
+        return users.stream()
+                .filter(u -> u.getDocument().equals(document))
+                .findFirst()
+                .orElse(null);
+    }
+
     // Mapea la información de una solicitud de préstamo y un usuario a un objeto LoanUserInfo
     private LoanUserInfo mapToLoanUserInfo(LoanInfo loan, UserInfo user) {
         return LoanUserInfo.builder()
@@ -319,13 +357,7 @@ public class LoanApplicationUseCase implements ILoanApplicationUseCase  {
                 .build();
     }
 
-    // Busca un usuario en la lista por su documento
-    private UserInfo findUserByDocument(List<UserInfo> users, String document) {
-        return users.stream()
-                .filter(u -> u.getDocument().equals(document))
-                .findFirst()
-                .orElse(null);
-    }
+
 
     // Calcula la cuota mensual de un préstamo utilizando la fórmula de amortización
     private Double calculateMonthlyInstallment(LoanInfo loan) {
