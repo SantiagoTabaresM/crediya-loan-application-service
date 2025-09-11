@@ -1,6 +1,7 @@
 package co.com.pragma.model.loanapplication.gateways;
 
 import co.com.pragma.model.loanapplication.LoanApplication;
+import co.com.pragma.model.loanapplication.LoanBasicInfo;
 import co.com.pragma.model.loanapplication.LoanInfo;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -23,4 +24,7 @@ public interface LoanApplicationRepository {
                                              String loanState,
                                              Integer page,
                                              Integer size);
+
+    Flux<LoanBasicInfo>  getApprovedLoansByDocument(String document);
+
 }

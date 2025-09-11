@@ -6,6 +6,7 @@ import co.com.pragma.model.loanapplication.gateways.LoanApplicationRepository;
 import co.com.pragma.model.loanapplication.gateways.LoanApplicationWebClient;
 import co.com.pragma.model.loanapplication.gateways.SQSsender;
 import co.com.pragma.model.loanstate.gateways.LoanStateRepository;
+import co.com.pragma.model.loantype.LoanType;
 import co.com.pragma.model.loantype.gateways.LoanTypeRepository;
 import co.com.pragma.model.utils.gateways.Logger;
 import co.com.pragma.model.utils.gateways.TxOperational;
@@ -83,11 +84,46 @@ class LoanApplicationUseCaseTest {
     }
 
     @Test
-    void testSaveLoanApplication_WithValidLoanApplication_ShouldSaveSuccessfully() {
+    void testSaveLoanApplication_WithValidLoanApplication_ShouldSaveSuccessfully_NoAutomaticReview() {
         when(loanTypeRepository.existsById(validLoanApplication.getLoanTypeId())).thenReturn(Mono.just(true));
         when(loanApplicationWebClient.checkUserExists(validLoanApplication.getDocument(), validLoanApplication.getEmail()))
                 .thenReturn(Mono.just(true));
         when(loanApplicationRepository.save(validLoanApplication)).thenReturn(Mono.just(validLoanApplication));
+
+        LoanType loanType = LoanType.builder()
+                .loanTypeId(1)
+                .typeName("PERSONAL")
+                .automaticValidation(Boolean.FALSE)
+                .build();
+
+        when(loanTypeRepository.findById(validLoanApplication.getLoanTypeId())).thenReturn(Mono.just(loanType));
+
+
+        when(txOperational.execute(any())).thenAnswer(invocation -> {
+            // Ejecuta el supplier pasado
+            return ((Supplier<Mono<LoanApplication>>) invocation.getArgument(0)).get();
+        });
+
+        StepVerifier.create(loanApplicationUseCase.saveLoanApplication(validLoanApplication))
+                .expectNext(validLoanApplication)
+                .verifyComplete();
+    }
+
+    @Test
+    void testSaveLoanApplication_WithValidLoanApplication_ShouldSaveSuccessfully_AutomaticReview() {
+        when(loanTypeRepository.existsById(validLoanApplication.getLoanTypeId())).thenReturn(Mono.just(true));
+        when(loanApplicationWebClient.checkUserExists(validLoanApplication.getDocument(), validLoanApplication.getEmail()))
+                .thenReturn(Mono.just(true));
+        when(loanApplicationRepository.save(validLoanApplication)).thenReturn(Mono.just(validLoanApplication));
+
+        LoanType loanType = LoanType.builder()
+                .loanTypeId(1)
+                .typeName("PERSONAL")
+                .automaticValidation(Boolean.TRUE)
+                .build();
+
+        when(loanTypeRepository.findById(validLoanApplication.getLoanTypeId())).thenReturn(Mono.just(loanType));
+        when(sqsSender.automaticReview(anyString())).thenReturn(Mono.just("msg-123"));
 
         when(txOperational.execute(any())).thenAnswer(invocation -> {
             // Ejecuta el supplier pasado
@@ -230,7 +266,7 @@ class LoanApplicationUseCaseTest {
             return ((Supplier<Mono<LoanApplication>>) invocation.getArgument(0)).get();
         });
         when(loanApplicationRepository.save(validLoanApplication)).thenReturn(Mono.just(validLoanApplication));
-        when(sqsSender.send(anyString())).thenReturn(Mono.just("msg-123"));
+        when(sqsSender.sendNotification(anyString())).thenReturn(Mono.just("msg-123"));
 
         StepVerifier.create(loanApplicationUseCase.updateLoanApplication(validLoanApplication))
                 .expectNext(validLoanApplication)
@@ -511,5 +547,54 @@ class LoanApplicationUseCaseTest {
                 })
                 .verifyComplete();
     }
+
+    @Test
+    void testGetApprovedLoanInfoByUserDocument() {
+        String document = "12345";
+
+        LoanBasicInfo loan1 = new LoanBasicInfo();
+        loan1.setAmount(1000.0);
+        LoanBasicInfo loan2 = new LoanBasicInfo();
+        loan2.setAmount(2000.0);
+
+        // Mockear el repositorio
+        when(loanApplicationRepository.getApprovedLoansByDocument(document))
+                .thenReturn(Flux.just(loan1, loan2));
+
+        // Llamar al método
+        Flux<LoanBasicInfo> result = loanApplicationUseCase.getApprovedLoanInfoByUserDocument(document);
+
+        // Verificar con StepVerifier
+        StepVerifier.create(result)
+                .expectNext(loan1)
+                .expectNext(loan2)
+                .verifyComplete();
+
+        // Verificar que se llamó al repositorio
+        verify(loanApplicationRepository, times(1)).getApprovedLoansByDocument(document);
+    }
+
+    @Test
+    void testGetAllLoanApplications() {
+        LoanApplication app1 = new LoanApplication();
+        app1.setApplicationId(1);
+        LoanApplication app2 = new LoanApplication();
+        app2.setApplicationId(2);
+
+        when(loanApplicationRepository.findAll())
+                .thenReturn(Flux.just(app1, app2));
+
+        Flux<LoanApplication> result = loanApplicationUseCase.getAllLoanApplications();
+
+        StepVerifier.create(result)
+                .expectNext(app1)
+                .expectNext(app2)
+                .verifyComplete();
+
+        verify(loanApplicationRepository, times(1)).findAll();
+    }
 }
+
+
+
 

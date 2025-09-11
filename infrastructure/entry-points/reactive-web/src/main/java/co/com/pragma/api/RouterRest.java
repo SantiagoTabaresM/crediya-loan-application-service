@@ -36,6 +36,8 @@ public class RouterRest {
     private static final String LOAN_APPLICATION_ID =  "/api/v1/loan-application/{id}";
 
     private static final String LOAN_APPLICATION_REPORT = "/api/v1/loan-application-report";
+    private static final String LOANS_APPROVED_DOCUMENT = "/api/v1/approved-loans/{document}";
+
 
     @Bean
     @RouterOperations({
@@ -137,7 +139,7 @@ public class RouterRest {
                             operationId = "getLoanApplicationsReport",
                             summary = "Get loanApplications report",
                             parameters = {
-                                    @Parameter(name = "id", in = ParameterIn.PATH, description = "Application ID", required = true, schema = @Schema(type = "integer")),
+                                    @Parameter(name = "id", in = ParameterIn.QUERY, description = "Application ID", schema = @Schema(type = "integer")),
                                     @Parameter(name = "document", in = ParameterIn.QUERY, description = "Applicant document", schema = @Schema(type = "string")),
                                     @Parameter(name = "term", in = ParameterIn.QUERY, description = "Loan term in months", schema = @Schema(type = "integer")),
                                     @Parameter(name = "loanType", in = ParameterIn.QUERY, description = "Loan type", schema = @Schema(type = "string")),
@@ -150,6 +152,23 @@ public class RouterRest {
                                             content = @Content(schema = @Schema(implementation = String.class)))
                             }
                     )
+            ),
+            @RouterOperation(
+                    path = LOANS_APPROVED_DOCUMENT,
+                    method = {RequestMethod.GET},
+                    beanClass = LoanApplicationHandler.class,
+                    beanMethod = "listenGetApprovedLoansByDocument",
+                    operation = @Operation(
+                            operationId = "getApprovedLoanInfoByUserDocument",
+                            summary = "Get all approved loanApplications by document",
+                            parameters = {
+                                    @Parameter(in = ParameterIn.PATH, name = "document", required = true, description = "Document number of the user")
+                                   },
+                            responses = {
+                                    @ApiResponse(responseCode = "200", description = "List of approved loanApplications",
+                                            content = @Content(schema = @Schema(implementation = String.class)))
+                            }
+                    )
             )
     })
     public RouterFunction<ServerResponse> routerFunction(LoanApplicationHandler routeLoanApplication ) {
@@ -158,6 +177,7 @@ public class RouterRest {
                 .andRoute(DELETE(loanApplicationPath.getLoanApplicationsById()), loanApplicationHandler::listenDeleteLoanApplication)
                 .andRoute(GET(loanApplicationPath.getLoanApplications()), loanApplicationHandler::listenGetAllLoanApplications)
                 .andRoute(GET(loanApplicationPath.getLoanApplicationsById()), loanApplicationHandler::listenGetLoanApplicationById)
-                .andRoute(GET(LOAN_APPLICATION_REPORT), loanApplicationHandler::listenGetLoanApplicationsReport);
+                .andRoute(GET(LOAN_APPLICATION_REPORT), loanApplicationHandler::listenGetLoanApplicationsReport)
+                .andRoute(GET(LOANS_APPROVED_DOCUMENT), loanApplicationHandler::listenGetApprovedLoansByDocument);
     }
 }

@@ -1,10 +1,8 @@
 package co.com.pragma.api.mapper;
 
-import co.com.pragma.api.dto.CreateLoanApplicationDTO;
-import co.com.pragma.api.dto.LoanApplicationDTO;
-import co.com.pragma.api.dto.LoanUserReportDTO;
-import co.com.pragma.api.dto.UpdateLoanApplicationDTO;
+import co.com.pragma.api.dto.*;
 import co.com.pragma.model.loanapplication.LoanApplication;
+import co.com.pragma.model.loanapplication.LoanBasicInfo;
 import co.com.pragma.model.loanapplication.LoanUserReport;
 import org.mapstruct.Mapper;
 
@@ -21,5 +19,10 @@ public interface  LoanApplicationDTOMapper {
 
     LoanApplication updateLoanApplicationDTOtoLoanApplication(UpdateLoanApplicationDTO updateLoanApplicationDTO);
 
+    LoanBasicInfoDTO toLoanBasicInfoDTO(LoanBasicInfo loanBasicInfo);
+
+
     LoanUserReportDTO toLoanUserReportDTO(LoanUserReport loanApplication);
+
+
 }

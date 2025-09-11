@@ -1,6 +1,7 @@
 package co.com.pragma.usecase.loanapplication;
 
 import co.com.pragma.model.loanapplication.LoanApplication;
+import co.com.pragma.model.loanapplication.LoanBasicInfo;
 import co.com.pragma.model.loanapplication.LoanUserReport;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -24,5 +25,7 @@ public interface ILoanApplicationUseCase {
                                                          String state,
                                                          Integer page,
                                                          Integer size) ;
+
+    public Flux<LoanBasicInfo> getApprovedLoanInfoByUserDocument(String document);
 
 }
