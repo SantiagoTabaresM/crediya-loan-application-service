@@ -34,6 +34,8 @@ public class LoanApplicationUseCase implements ILoanApplicationUseCase  {
 
     private static final String ERROR_VALIDATION = "Validation error";
     private static final String ERROR_DONT_EXIST = "does not exist";
+    private static final String FAILED_SEND_MESSAGE = "Failed to send message";
+    private static final String MESSAGE_SENT = "Message sent with id: ";
 
 
     private static final Integer PENDING_STATE = 1;
@@ -49,7 +51,7 @@ public class LoanApplicationUseCase implements ILoanApplicationUseCase  {
 
     private final LoanApplicationWebClient loanApplicationWebClient;
 
-    private final SQSsender notificationEmail;
+    private final SQSsender notification;
 
     private final Logger logger;
     private final TxOperational txOperational;
@@ -157,9 +159,9 @@ public class LoanApplicationUseCase implements ILoanApplicationUseCase  {
                 loanApplication.getDocument()
         );
         logger.info("[sendToAutomaticReview] Preparate to automatic review " + loanApplication.getApplicationId());
-        notificationEmail.automaticReview(message)
-                .doOnSuccess(messageId -> logger.info("Message sent with id: " + messageId))
-                .doOnError(error -> logger.error("Failed to send  message", error))
+        notification.automaticReview(message)
+                .doOnSuccess(messageId -> logger.info(MESSAGE_SENT + messageId))
+                .doOnError(error -> logger.error(FAILED_SEND_MESSAGE, error))
                 .subscribe();
         return Mono.just(loanApplication);
     }
@@ -224,10 +226,12 @@ public class LoanApplicationUseCase implements ILoanApplicationUseCase  {
                     Mono<LoanApplication> updateFlow;
 
                     if (sameUser) {
-                        updateFlow = updateLoanApplicationRepository(loanApplication);
+                        updateFlow = updateLoanApplicationRepository(loanApplication)
+                                .flatMap(this::incrementReportApprovedLoanIfNeeded);
                     } else {
                         updateFlow = validateUserExist(loanApplication)
-                                .flatMap(this::updateLoanApplicationRepository);
+                                .flatMap(this::updateLoanApplicationRepository)
+                                .flatMap(this::incrementReportApprovedLoanIfNeeded);
                     }
 
                     if (stateChanged) {
@@ -247,13 +251,28 @@ public class LoanApplicationUseCase implements ILoanApplicationUseCase  {
                 loanApplication.getEmail()
         );
         logger.info("[sendEmail] Preparate email notification to  " + loanApplication.getApplicationId());
-        notificationEmail.sendNotification(message)
-                .doOnSuccess(messageId -> logger.info("Message sent with id: " + messageId))
-                .doOnError(error -> logger.error("Failed to send  message", error))
+        notification.sendNotification(message)
+                .doOnSuccess(messageId -> logger.info(MESSAGE_SENT + messageId))
+                .doOnError(error -> logger.error(FAILED_SEND_MESSAGE, error))
         .subscribe();
         return Mono.just(loanApplication);
     }
 
+
+    private Mono<LoanApplication> incrementReportApprovedLoanIfNeeded(LoanApplication loanApplication) {
+        if (loanApplication.getStateId() != null && loanApplication.getStateId().equals(3)) {
+            String message = String.format(
+                    "{\"amount\":\"%s\"}",
+                    loanApplication.getAmount().toString()
+            );
+            logger.info("[incrementReportApprovedLoanIfNeeded] Incrementing approved loan report for application ID: " + loanApplication.getApplicationId());
+            notification.incrementApprovedLoansReport(message)
+                    .doOnSuccess(messageId -> logger.info(MESSAGE_SENT + messageId))
+                    .doOnError(error -> logger.error(FAILED_SEND_MESSAGE, error))
+                    .subscribe();
+        }
+        return Mono.just(loanApplication);
+    }
 
     /**
      * Actualiza la solicitud y loguea el resultado.

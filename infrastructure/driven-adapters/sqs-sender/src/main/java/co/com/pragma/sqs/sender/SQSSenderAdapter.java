@@ -29,6 +29,10 @@ public class SQSSenderAdapter implements SQSsender {
        return sendMessage(message, properties.debtCapacityQueueUrl());
     }
 
+    @Override
+    public Mono<String> incrementApprovedLoansReport(String message) {
+        return sendMessage(message, properties.incrementApprovedLoanReport());
+    }
 
 
     private Mono<String> sendMessage(String message, String queueUrl) {
