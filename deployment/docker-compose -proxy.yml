@@ -1,0 +1,130 @@
+# Docker Compose file to set up microservices and their databases with networking and a reverse proxy with Nginx
+#-----------------------------------------------------------------------------------
+# Este archivo docker-compose.yml configura tres microservicios, sus bases de datos PostgreSQL y un proxy inverso con Nginx, para un entorno de desarrollo local
+# SE DEBE COLOCAR Y ESTABLECER LA RAIZ FUERA DE LA CARPETA DE LOS MICROSERVICIOS PARA QUE FUNCIONE CORRECTAMENTE
+# Y AL MISMO NIVEL CREAR UNA CARPETA SCRIPTS SE DEBE COLOCAR LOS SCRIPTS DE INICIALIZACION DE CADA BASE DE DATOS
+# Y UNA CARPETA NGINX PARA LA CONFIGURACION DEL PROXY 
+services:
+  # -----------------------------
+  # Base de datos para Authentication Service
+  # -----------------------------
+  auth-db:
+    image: postgres:15
+    container_name: auth-db
+    restart: always
+    environment:
+      POSTGRES_USER: auth_user
+      POSTGRES_PASSWORD: auth_pass
+      POSTGRES_DB: auth_db
+    ports:
+      - "5433:5432"
+    volumes:
+      - ./scripts/db_auth/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - ms_network
+  
+  # -----------------------------
+  # Base de datos para Loan Application Service
+  # -----------------------------
+  loan-db:
+    image: postgres:15
+    container_name: loan-db
+    restart: always
+    environment:
+      POSTGRES_USER: loan_user
+      POSTGRES_PASSWORD: loan_pass
+      POSTGRES_DB: loan_db
+    ports:
+      - "5434:5432"
+    volumes:
+      - ./scripts/db_loan/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - ms_network
+  
+
+  # -----------------------------
+  # Authentication Microservice
+  # -----------------------------
+  crediya-authentication-service:
+    build:
+      context: ./crediya-authentication-service
+      dockerfile: deployment/Dockerfile
+    container_name: crediya-authentication-service
+    ports:
+      - "8084:8080"
+    networks:
+      - ms_network
+    environment:
+      - ADAPTERS_R2DBC_HOST=auth-db
+      - ADAPTERS_R2DBC_PORT=5432
+      - ADAPTERS_R2DBC_DATABASE=auth_db
+      - ADAPTERS_R2DBC_SCHEMA=public
+      - ADAPTERS_R2DBC_USERNAME=auth_user
+      - ADAPTERS_R2DBC_PASSWORD=auth_pass
+
+# -----------------------------
+  # Loan Application Microservice
+  # -----------------------------
+  crediya-loan-application-service:
+    build:
+      context: ./crediya-loan-application-service
+      dockerfile: deployment/Dockerfile
+    container_name: crediya-loan-application-service
+    ports:
+      - "8085:8081"
+    depends_on:
+      - loan-db
+      - crediya-authentication-service  # porque depende de comunicarse con m1
+    networks:
+      - ms_network
+    environment:
+      - ADAPTERS_R2DBC_HOST=loan-db
+      - ADAPTERS_R2DBC_PORT=5432
+      - ADAPTERS_R2DBC_DATABASE=loan_db
+      - ADAPTERS_R2DBC_SCHEMA=public
+      - ADAPTERS_R2DBC_USERNAME=loan_user
+      - ADAPTERS_R2DBC_PASSWORD=loan_pass
+      # Configuración de AWS SQS
+      - ADAPTER_SQS_QUEUEURL=https://sqs.us-east-1.amazonaws.com/198413840757/Notification_SQS
+      - ADAPTER_SQS_REGION=us-east-1
+      - AWS_ACCESS_KEY_ID=your_access_key_id
+      - AWS_SECRET_ACCESS_KEY=your_secret_access_key
+      - AWS_REGION=us-east-1
+
+      # Comunicación con el auth-service
+      - ADAPTER_RESTCONSUMER_URL=http://crediya-authentication-service:8080
+
+  crediya-report-service:
+    build:
+      context: ./crediya-report-service
+      dockerfile: deployment/Dockerfile
+    container_name: crediya-report-service
+    ports:
+      - "8086:8083"
+    networks:
+      - ms_network
+    environment:
+      # Configuración de AWS SQS
+      - ENTRYPOINT_SQS_QUEUEURL=https://sqs.us-east-1.amazonaws.com/198413840757/Report_SQS
+      - ENTRYPOINT_SQS_REGION=us-east-1
+      - AWS_ACCESS_KEY_ID=your_access_key_id
+      - AWS_SECRET_ACCESS_KEY=your_secret_access_key
+      - AWS_REGION=us-east-1
+
+
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "9000:80"
+    volumes:
+      - ./nginx:/etc/nginx/conf.d
+    depends_on:
+      - crediya-loan-application-service
+      - crediya-authentication-service
+      - crediya-report-service
+    networks:
+      - ms_network
+
+networks:
+  ms_network:
+    driver: bridge
