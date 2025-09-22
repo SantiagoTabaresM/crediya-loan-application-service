@@ -56,6 +56,7 @@ adapter:
     region: "us-east-1"
     notificationQueueUrl: "https://sqs.us-east-1.amazonaws.com/198413840757/Notification_SQS"
     debtCapacityQueueUrl: "https://sqs.us-east-1.amazonaws.com/198413840757/DebtCapacity_SQS"
+    incrementApprovedLoanReport: "https://sqs.us-east-1.amazonaws.com/198413840757/Report_SQS"
 resilience4j:
   circuitbreaker:
     instances:
