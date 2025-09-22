@@ -26,6 +26,7 @@ public class PostgreSQLConnectionPool {
                 .schema(properties.schema())
                 .username(properties.username())
                 .password(properties.password())
+                .sslMode(io.r2dbc.postgresql.client.SSLMode.REQUIRE)// Necesario para RDS
                 .build();
 
         ConnectionPoolConfiguration poolConfiguration = ConnectionPoolConfiguration.builder()

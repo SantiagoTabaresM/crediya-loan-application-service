@@ -53,7 +53,7 @@ public class AuthorizationJwt implements WebFluxConfigurer {
         http
                 .csrf(ServerHttpSecurity.CsrfSpec::disable)
                 .authorizeExchange(authorize -> authorize
-                        .pathMatchers("webjars/swagger-ui/**", "/v3/api-docs/**").permitAll()
+                        .pathMatchers("webjars/swagger-ui/**", "/v3/api-docs/**", "/actuator/health").permitAll()
                         .anyExchange().authenticated() // Todas las demás rutas requieren autenticación
                 )
                 .oauth2ResourceServer(oauth2 ->
